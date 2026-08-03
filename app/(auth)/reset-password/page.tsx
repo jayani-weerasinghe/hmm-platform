@@ -1,88 +1,171 @@
 'use client'
 
 import { useActionState, useState } from 'react'
+import Link from 'next/link'
 import { resetPasswordAction } from '@/actions/auth'
 import { checkPasswordRules } from '@/lib/password-validation'
 
-const RULES = [
-  { key: 'minLength'   , label: 'At least 8 characters' },
-  { key: 'hasUppercase', label: 'At least one uppercase letter' },
-  { key: 'hasLowercase', label: 'At least one lowercase letter' },
-  { key: 'hasNumber'   , label: 'At least one number' },
-  { key: 'hasSpecial'  , label: 'At least one special character (!@#$%^&*)' },
-] as const
+type RuleKey = 'minLength' | 'case' | 'hasNumber' | 'hasSpecial'
+
+const RULES: { key: RuleKey; label: string }[] = [
+  { key: 'minLength', label: '8+ characters' },
+  { key: 'case',     label: 'Upper & lowercase' },
+  { key: 'hasNumber', label: 'One number' },
+  { key: 'hasSpecial', label: 'One symbol' },
+]
+
+function getRuleChecks(password: string): Record<RuleKey, boolean> {
+  const r = checkPasswordRules(password)
+  return {
+    minLength:  r.minLength,
+    case:       r.hasUppercase && r.hasLowercase,
+    hasNumber:  r.hasNumber,
+    hasSpecial: r.hasSpecial,
+  }
+}
+
+function strengthLevel(checks: Record<RuleKey, boolean>): { segs: number; label: string } {
+  const n = Object.values(checks).filter(Boolean).length
+  if (n <= 1) return { segs: 0, label: '' }
+  if (n === 2) return { segs: 1, label: 'Weak' }
+  if (n === 3) return { segs: 2, label: 'Medium' }
+  return { segs: 3, label: 'Strong' }
+}
 
 export default function ResetPasswordPage() {
   const [state, formAction, isPending] = useActionState(resetPasswordAction, null)
   const [password, setPassword] = useState('')
-  const rules = checkPasswordRules(password)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
+
+  const checks = getRuleChecks(password)
+  const { segs, label } = strengthLevel(checks)
 
   return (
-    <div className="rounded-2xl bg-white p-8 shadow-sm ring-1 ring-gray-200">
-      <h2 className="mb-1 text-xl font-semibold text-gray-900">Set a new password</h2>
-      <p className="mb-6 text-sm text-gray-500">
+    <div className="rounded-3xl bg-white p-10 shadow-md">
+      <h1 className="mb-1 text-3xl font-bold text-[#1B2B4A]">Reset password</h1>
+      <p className="mb-8 text-sm text-gray-500">
         Choose a strong password for your account.
       </p>
 
       {state?.error && (
-        <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700 whitespace-pre-line" role="alert">
+        <div className="mb-5 rounded-xl bg-red-50 p-3 text-sm text-red-700 whitespace-pre-line" role="alert">
           {state.error}
         </div>
       )}
 
-      <form action={formAction} className="space-y-4">
+      <form action={formAction} className="space-y-5">
+        {/* New password */}
         <div>
-          <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-gray-700">
             New password
           </label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            autoComplete="new-password"
-            required
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="••••••••"
-          />
+          <div className="relative">
+            <input
+              id="password"
+              name="password"
+              type={showPassword ? 'text' : 'password'}
+              autoComplete="new-password"
+              required
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="••••••••••"
+              className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 pr-16 text-sm outline-none transition focus:border-[#F5A623] focus:ring-2 focus:ring-[#F5A623]/20"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(v => !v)}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-[#1B2B4A] hover:text-[#F5A623] transition-colors"
+            >
+              {showPassword ? 'Hide' : 'Show'}
+            </button>
+          </div>
+
+          {/* Strength bar */}
+          {password.length > 0 && (
+            <div className="mt-2.5 flex items-center gap-2">
+              <div className="flex flex-1 gap-1.5">
+                {[1, 2, 3].map(i => (
+                  <div
+                    key={i}
+                    className={`h-1.5 flex-1 rounded-full transition-all ${
+                      i <= segs ? 'bg-[#F5A623]' : 'bg-gray-200'
+                    }`}
+                  />
+                ))}
+              </div>
+              {label && (
+                <span className="text-xs font-semibold text-[#F5A623]">{label}</span>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Real-time password requirements checklist */}
-        {password.length > 0 && (
-          <ul className="space-y-1 rounded-lg bg-gray-50 p-3 text-xs">
-            {RULES.map(r => (
-              <li key={r.key} className={`flex items-center gap-2 ${rules[r.key] ? 'text-green-600' : 'text-gray-400'}`}>
-                <span>{rules[r.key] ? '✓' : '○'}</span>
-                {r.label}
-              </li>
-            ))}
-          </ul>
-        )}
-
+        {/* Confirm password */}
         <div>
-          <label htmlFor="confirm" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="confirm" className="mb-1.5 block text-sm font-medium text-gray-700">
             Confirm new password
           </label>
-          <input
-            id="confirm"
-            name="confirm"
-            type="password"
-            autoComplete="new-password"
-            required
-            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="••••••••"
-          />
+          <div className="relative">
+            <input
+              id="confirm"
+              name="confirm"
+              type={showConfirm ? 'text' : 'password'}
+              autoComplete="new-password"
+              required
+              placeholder="••••••••••"
+              className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 pr-16 text-sm outline-none transition focus:border-[#F5A623] focus:ring-2 focus:ring-[#F5A623]/20"
+            />
+            <button
+              type="button"
+              onClick={() => setShowConfirm(v => !v)}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-[#1B2B4A] hover:text-[#F5A623] transition-colors"
+            >
+              {showConfirm ? 'Hide' : 'Show'}
+            </button>
+          </div>
         </div>
+
+        {/* 2×2 requirements grid */}
+        {password.length > 0 && (
+          <div className="grid grid-cols-2 gap-x-6 gap-y-2.5">
+            {RULES.map(r => (
+              <div key={r.key} className="flex items-center gap-2">
+                <span
+                  className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
+                    checks[r.key]
+                      ? 'bg-[#F5A623] text-white'
+                      : 'bg-gray-100 text-gray-400'
+                  }`}
+                >
+                  {checks[r.key] ? '✓' : '·'}
+                </span>
+                <span className={`text-xs ${checks[r.key] ? 'text-gray-700' : 'text-gray-400'}`}>
+                  {r.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
 
         <button
           type="submit"
           disabled={isPending}
-          className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:bg-blue-400"
+          className="w-full rounded-xl bg-[#F5A623] px-4 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#E8941A] disabled:opacity-60"
         >
-          {isPending ? 'Saving…' : 'Set new password'}
+          {isPending ? 'Saving…' : 'Update password'}
         </button>
       </form>
+
+      <p className="mt-5 text-center text-sm text-gray-400">
+        Remembered it?{' '}
+        <Link
+          href="/login"
+          className="font-semibold text-[#1B2B4A] hover:text-[#F5A623] transition-colors"
+        >
+          Back to sign in
+        </Link>
+      </p>
     </div>
   )
 }

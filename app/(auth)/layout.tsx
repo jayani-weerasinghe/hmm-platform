@@ -1,12 +1,13 @@
+import { AuthLeftPanel } from '@/components/auth/auth-left-panel'
+
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="mb-8 text-center">
-          <h1 className="text-2xl font-bold text-gray-900">Healing Minds Matter</h1>
-          <p className="mt-1 text-sm text-gray-500">Platform Administration</p>
+    <div className="min-h-screen bg-[#EDEEF2] flex">
+      <AuthLeftPanel />
+      <div className="flex flex-1 items-center justify-center py-12 pl-2 pr-12 lg:py-20 lg:pl-4 lg:pr-20">
+        <div className="w-full max-w-[480px]">
+          {children}
         </div>
-        {children}
       </div>
     </div>
   )

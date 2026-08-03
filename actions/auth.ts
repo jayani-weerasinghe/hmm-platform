@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { validatePassword } from '@/lib/password-validation'
 import { isPasswordReused, recordPasswordHash } from '@/lib/password-history.server'
+import { writeAuditLog } from '@/lib/audit'
 
 // ---------------------------------------------------------------------------
 // Login — Story 1.1
@@ -112,8 +113,14 @@ export async function resetPasswordAction(
     return { error: 'Failed to reset password. The link may have expired — please request a new one.' }
   }
 
-  // Scenario 08: record new hash; Supabase invalidates the reset link automatically
+  // Scenario 08: record new hash, log the event; Supabase invalidates the reset link automatically
   await recordPasswordHash(user.id, password)
+  await writeAuditLog({
+    actorId: user.id,
+    action: 'auth.password_reset',
+    entityType: 'user',
+    entityId: user.id,
+  })
 
   redirect('/login?reset=success')
 }
@@ -171,8 +178,14 @@ export async function changePasswordAction(
   const { error: updateError } = await supabase.auth.updateUser({ password: newPassword })
   if (updateError) return { error: 'Failed to update password. Please try again.' }
 
-  // Scenario 06: record hash; Scenario 07: Supabase invalidates other sessions automatically
+  // Scenario 06: record hash + audit log; Scenario 07: Supabase invalidates other sessions automatically
   await recordPasswordHash(user.id, newPassword)
+  await writeAuditLog({
+    actorId: user.id,
+    action: 'auth.password_changed',
+    entityType: 'user',
+    entityId: user.id,
+  })
 
   return { success: true }
 }
@@ -184,4 +197,11 @@ export async function logoutAction() {
   const supabase = await createClient()
   await supabase.auth.signOut()
   redirect('/login')
+}
+
+// Story 1.4 Scenario 04: timeout logout must redirect with session_expired param
+export async function sessionTimeoutLogoutAction() {
+  const supabase = await createClient()
+  await supabase.auth.signOut()
+  redirect('/login?error=session_expired')
 }
