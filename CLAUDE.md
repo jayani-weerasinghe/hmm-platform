@@ -104,8 +104,34 @@ password reuse rules).
   Super-Admin-initiated edits (8.2 Sc04) and on reactivation (8.3 Sc06)
   require a transactional email integration (Resend/SendGrid) not yet set up.
 
+**Epic 4 — Resource Management (Stories 4.1–4.2)** ✅ (verified 2026-08-10)
+- Upload: video (file upload or external URL), article (rich-text-ish body
+  and/or external link), document (file upload; PDF/Word/PPT/txt), other
+  (file or URL) — title/description/category/publication_date common fields,
+  missing-required-field blocked with inline error.
+- Files stored in private Supabase Storage bucket `resources`
+  (migration 20260810000000); `resources.content_url` holds either an
+  http(s) URL or a bucket-relative storage path (disambiguated by regex on
+  read). Super Admin list generates short-lived signed URLs per row for
+  View/Download. RLS on `storage.objects` mirrors the `resources` table:
+  super_admin all, champion/gatekeeper read-only.
+- Edit: replace file/URL/text, old stored file deleted from bucket on
+  replacement. Delete: removes row and any associated stored file.
+- **Storage upload gotcha**: uploading the native `File` from a server
+  action's `FormData` directly to `admin.storage.from(...).upload()` fails;
+  convert via `Buffer.from(await file.arrayBuffer())` first (see
+  `actions/resources.ts`).
+
+**Epic 5 — Announcement Management (Stories 5.1–5.2)** ✅ (verified 2026-08-10)
+- Create: title/body/publish_date (date, immediate or future — RLS's
+  `NOW() >= publish_date` check makes future-scheduled announcements go
+  live automatically with no cron needed) + optional expiry_date (RLS's
+  `NOW() < expiry_date` hides it once passed). Super-Admin announcements
+  are always platform-wide (`club_id = NULL`).
+- List shows a computed status badge (Scheduled / Active / Expired).
+  Edit/Delete both supported.
+
 ### Not started yet
-- Resource Management and Announcement Management (Epic 4 & 5).
 - Event & Calendar view, Super Admin read-only (Epic 6).
 - Permission Management (Epic 9).
 - Everything on the Champion side (Gatekeeper management, Champion
