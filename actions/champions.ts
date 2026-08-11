@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { writeAuditLog } from '@/lib/audit'
+import { endDelegationsForDeactivatedUser } from '@/actions/permissions'
 
 export type ChampionActionState = {
   error?: string
@@ -180,6 +181,8 @@ export async function deactivateChampionAction(
     entityId: championId,
     details: { deactivation_reason: 'manual' },
   })
+
+  await endDelegationsForDeactivatedUser(championId, user.id)
 
   // Check if this was the sole active champion in the club
   let soleChampion = false

@@ -1,0 +1,364 @@
+'use server'
+
+import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { writeAuditLog } from '@/lib/audit'
+
+export type PermissionActionState = { error?: string } | null
+
+// ── Story 9.1: Role-Based Default Permissions ──────────────────────────────
+
+export async function updateRoleDefaultAction(formData: FormData) {
+  const role = formData.get('role') as string
+  const permission = formData.get('permission') as string
+  const isEnabled = formData.get('is_enabled') === 'true'
+
+  if (role !== 'champion' && role !== 'gatekeeper') return
+  if (!permission) return
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data: existing } = await supabase
+    .from('permissions')
+    .select('id, is_enabled')
+    .eq('role', role)
+    .eq('permission', permission)
+    .maybeSingle()
+
+  const { data: saved, error } = await supabase
+    .from('permissions')
+    .upsert(
+      { role, permission, is_enabled: isEnabled, updated_by: user.id },
+      { onConflict: 'role,permission' }
+    )
+    .select('id')
+    .single()
+
+  if (error) return
+
+  await writeAuditLog({
+    actorId: user.id,
+    action: 'permission.role_default_updated',
+    entityType: 'permission',
+    entityId: saved.id,
+    details: { role, permission, prior_value: existing?.is_enabled ?? null, new_value: isEnabled },
+  })
+
+  revalidatePath('/super-admin/permissions')
+}
+
+// ── Story 9.2: Individual Permission Exception ─────────────────────────────
+
+export type ExceptionActionState = { error?: string } | null
+
+export async function grantIndividualExceptionAction(
+  _prev: ExceptionActionState,
+  formData: FormData
+): Promise<ExceptionActionState> {
+  const userId = formData.get('user_id') as string
+  const permission = (formData.get('permission') as string | null)?.trim()
+  const isEnabled = formData.get('is_enabled') === 'true'
+
+  if (!userId) return { error: 'Select a user.' }
+  if (!permission) return { error: 'Permission key is required.' }
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data: saved, error } = await supabase
+    .from('role_overrides')
+    .upsert(
+      { user_id: userId, permission, is_enabled: isEnabled, updated_by: user.id },
+      { onConflict: 'user_id,permission' }
+    )
+    .select('id')
+    .single()
+
+  if (error) return { error: error.message }
+
+  await writeAuditLog({
+    actorId: user.id,
+    action: 'permission.individual_exception_granted',
+    entityType: 'role_override',
+    entityId: saved.id,
+    details: { user_id: userId, permission, is_enabled: isEnabled },
+  })
+
+  revalidatePath('/super-admin/permissions/exceptions')
+  redirect('/super-admin/permissions/exceptions')
+}
+
+export async function revokeIndividualExceptionAction(formData: FormData) {
+  const overrideId = formData.get('override_id') as string
+  const userId = formData.get('user_id') as string
+  const permission = formData.get('permission') as string
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { error } = await supabase.from('role_overrides').delete().eq('id', overrideId)
+  if (error) return
+
+  await writeAuditLog({
+    actorId: user.id,
+    action: 'permission.individual_exception_revoked',
+    entityType: 'role_override',
+    entityId: overrideId,
+    details: { user_id: userId, permission },
+  })
+
+  revalidatePath('/super-admin/permissions/exceptions')
+}
+
+// ── Story 9.3: Permission Groups ────────────────────────────────────────────
+
+export type GroupActionState = { error?: string } | null
+
+export async function createGroupAction(
+  _prev: GroupActionState,
+  formData: FormData
+): Promise<GroupActionState> {
+  const name = (formData.get('name') as string | null)?.trim()
+  const description = (formData.get('description') as string | null)?.trim() || null
+
+  if (!name) return { error: 'Group name is required.' }
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data: group, error } = await supabase
+    .from('permission_groups')
+    .insert({ name, description, created_by: user.id })
+    .select('id')
+    .single()
+
+  if (error) {
+    if (error.code === '23505') return { error: `A group named "${name}" already exists.` }
+    return { error: error.message }
+  }
+
+  await writeAuditLog({
+    actorId: user.id,
+    action: 'permission_group.created',
+    entityType: 'permission_group',
+    entityId: group.id,
+    details: { name },
+  })
+
+  revalidatePath('/super-admin/permissions/groups')
+  redirect(`/super-admin/permissions/groups/${group.id}`)
+}
+
+export async function archiveGroupAction(formData: FormData) {
+  const groupId = formData.get('group_id') as string
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  await supabase.from('permission_groups').update({ is_active: false }).eq('id', groupId)
+
+  await writeAuditLog({
+    actorId: user.id,
+    action: 'permission_group.archived',
+    entityType: 'permission_group',
+    entityId: groupId,
+  })
+
+  revalidatePath('/super-admin/permissions/groups')
+  redirect('/super-admin/permissions/groups')
+}
+
+export async function addGroupMemberAction(formData: FormData) {
+  const groupId = formData.get('group_id') as string
+  const userId = formData.get('user_id') as string
+  if (!userId) return
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { error } = await supabase
+    .from('group_members')
+    .insert({ group_id: groupId, user_id: userId, added_by: user.id })
+
+  if (error) return
+
+  await writeAuditLog({
+    actorId: user.id,
+    action: 'permission_group.member_added',
+    entityType: 'permission_group',
+    entityId: groupId,
+    details: { user_id: userId },
+  })
+
+  revalidatePath(`/super-admin/permissions/groups/${groupId}`)
+}
+
+export async function removeGroupMemberAction(formData: FormData) {
+  const groupId = formData.get('group_id') as string
+  const userId = formData.get('user_id') as string
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { error } = await supabase
+    .from('group_members')
+    .delete()
+    .eq('group_id', groupId)
+    .eq('user_id', userId)
+
+  if (error) return
+
+  await writeAuditLog({
+    actorId: user.id,
+    action: 'permission_group.member_removed',
+    entityType: 'permission_group',
+    entityId: groupId,
+    details: { user_id: userId },
+  })
+
+  revalidatePath(`/super-admin/permissions/groups/${groupId}`)
+}
+
+// setting = 'allow' | 'deny' | 'unset'
+export async function setGroupPermissionAction(formData: FormData) {
+  const groupId = formData.get('group_id') as string
+  const permission = formData.get('permission') as string
+  const setting = formData.get('setting') as string
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data: existing } = await supabase
+    .from('group_permissions')
+    .select('id, is_enabled')
+    .eq('group_id', groupId)
+    .eq('permission', permission)
+    .maybeSingle()
+
+  if (setting === 'unset') {
+    if (existing) await supabase.from('group_permissions').delete().eq('id', existing.id)
+  } else {
+    await supabase
+      .from('group_permissions')
+      .upsert(
+        { group_id: groupId, permission, is_enabled: setting === 'allow', updated_by: user.id },
+        { onConflict: 'group_id,permission' }
+      )
+  }
+
+  await writeAuditLog({
+    actorId: user.id,
+    action: 'permission_group.permission_updated',
+    entityType: 'permission_group',
+    entityId: groupId,
+    details: { permission, prior_value: existing?.is_enabled ?? null, new_setting: setting },
+  })
+
+  revalidatePath(`/super-admin/permissions/groups/${groupId}`)
+}
+
+// ── Story 9.4: Temporary Role Delegation ────────────────────────────────────
+
+export type DelegationActionState = { error?: string } | null
+
+export async function createDelegationAction(
+  _prev: DelegationActionState,
+  formData: FormData
+): Promise<DelegationActionState> {
+  const delegatorId = formData.get('delegator_id') as string
+  const delegateId = formData.get('delegate_id') as string
+  const startsAt = formData.get('starts_at') as string
+  const endsAt = formData.get('ends_at') as string
+
+  if (!delegatorId || !delegateId) return { error: 'Select both a delegator and a delegate.' }
+  if (delegatorId === delegateId) return { error: 'Delegator and delegate must be different people.' }
+  if (!startsAt || !endsAt) return { error: 'Start and end dates are required.' }
+  if (new Date(endsAt) <= new Date(startsAt)) return { error: 'End date must be after the start date.' }
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data: delegation, error } = await supabase
+    .from('role_delegations')
+    .insert({ delegator_id: delegatorId, delegate_id: delegateId, starts_at: startsAt, ends_at: endsAt, created_by: user.id })
+    .select('id')
+    .single()
+
+  if (error) return { error: error.message }
+
+  await writeAuditLog({
+    actorId: user.id,
+    action: 'role_delegation.created',
+    entityType: 'role_delegation',
+    entityId: delegation.id,
+    details: { delegator_id: delegatorId, delegate_id: delegateId, starts_at: startsAt, ends_at: endsAt },
+  })
+
+  revalidatePath('/super-admin/permissions/delegations')
+  redirect('/super-admin/permissions/delegations')
+}
+
+export async function endDelegationAction(formData: FormData) {
+  const delegationId = formData.get('delegation_id') as string
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { error } = await supabase
+    .from('role_delegations')
+    .update({ ended_early_at: new Date().toISOString(), ended_reason: 'manual' })
+    .eq('id', delegationId)
+
+  if (error) return
+
+  await writeAuditLog({
+    actorId: user.id,
+    action: 'role_delegation.ended_manually',
+    entityType: 'role_delegation',
+    entityId: delegationId,
+  })
+
+  revalidatePath('/super-admin/permissions/delegations')
+}
+
+/**
+ * Called from deactivation flows (champions.ts, clubs.ts cascade) so any
+ * delegation where the deactivated user is the delegator ends immediately
+ * and gets an audit trail — the access itself already vanishes on the next
+ * live check via v_active_role_delegations' is_active predicate; this only
+ * concerns the recorded end-reason and audit log.
+ */
+export async function endDelegationsForDeactivatedUser(delegatorUserId: string, actorId: string) {
+  const admin = createAdminClient()
+
+  const { data: ended } = await admin
+    .from('role_delegations')
+    .update({ ended_early_at: new Date().toISOString(), ended_reason: 'delegator_deactivated' })
+    .eq('delegator_id', delegatorUserId)
+    .is('ended_early_at', null)
+    .gt('ends_at', new Date().toISOString())
+    .select('id, delegate_id')
+
+  if (!ended || ended.length === 0) return
+
+  await writeAuditLog({
+    actorId,
+    action: 'role_delegation.ended_delegator_deactivated',
+    entityType: 'profile',
+    entityId: delegatorUserId,
+    details: { ended_delegation_ids: ended.map(d => d.id), delegate_ids: ended.map(d => d.delegate_id) },
+  })
+}

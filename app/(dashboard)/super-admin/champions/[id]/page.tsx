@@ -13,7 +13,7 @@ export default async function ChampionDetailPage({
 
   const { data: champion } = await supabase
     .from('profiles')
-    .select('id, full_name, email, phone, is_active, deactivation_reason, club_id, created_at, clubs(id, name, is_active)')
+    .select('id, full_name, email, phone, is_active, deactivation_reason, club_id, created_at, clubs!profiles_club_id_fkey(id, name, is_active)')
     .eq('id', id)
     .eq('role', 'champion')
     .single()

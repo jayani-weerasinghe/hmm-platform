@@ -131,9 +131,52 @@ password reuse rules).
 - List shows a computed status badge (Scheduled / Active / Expired).
   Edit/Delete both supported.
 
+**Epic 9 — Permission Management (Stories 9.0–9.4)** ✅ (verified 2026-08-11)
+- User stories doc was updated mid-project: Epic 9 grew from 2 stories to 5
+  (9.0 Effective Permission Resolution, 9.1 Role Defaults, 9.2 Individual
+  Exceptions, 9.3 Permission Groups, 9.4 Temporary Role Delegation). Full
+  data-model plan (migration 20260811000000) was written and approved before
+  any code — see `.claude/plans` history for that session if needed.
+- New tables: `permission_groups`, `group_members`, `group_permissions`
+  (row presence = has-an-opinion; `is_enabled` = Allow/Deny; no row = Not
+  Set — the group UI is a 3-way Not Set/Allow/Deny control, not a checkbox,
+  specifically so 9.0's deny-overrides scenario is reachable), `role_delegations`
+  (no status column — Scheduled/Active/Expired is always computed live from
+  `starts_at`/`ends_at`/`ended_early_at` + the delegator's `profiles.is_active`,
+  same pattern as `announcements`).
+- Resolution engine: `public.effective_permission(user_id, permission)` —
+  precedence Individual (`role_overrides`) > Group (`group_permissions`,
+  deny-overrides on conflict) > Role default (`permissions`) — returns which
+  layer decided, for the UI. `public.effective_permission_with_delegation()`
+  wraps it: additive OR against the delegator's own effective result while an
+  active `role_delegations` row exists; never restricts the delegate's own
+  access. `public.list_effective_permissions()` is the one-call variant for a
+  per-user permissions view. All SECURITY DEFINER with an internal
+  self-or-super_admin guard (verified via a real authenticated-session smoke
+  test, not just service-role).
+- Deactivating a Champion (manual, or cascaded via club deactivation) now also
+  ends any `role_delegations` row where that user is the delegator
+  (`endDelegationsForDeactivatedUser` in `actions/permissions.ts`, called from
+  `actions/champions.ts` and `actions/clubs.ts`) — the access itself already
+  vanishes live via the `is_active` check in the resolution engine; this just
+  stamps `ended_reason='delegator_deactivated'` and writes the audit row.
+- Decisions made explicitly with the user before building: group deny needs
+  the 3-way control (not allow-only); delegation "activated"/"expired" are
+  NOT synthesized as audit events (live status badge only, no cron in this
+  app — same limitation already accepted for announcements); 9.4 is
+  Super-Admin-managed for any user this phase, no Champion self-service flow.
+- **Found and fixed a pre-existing bug while testing**: the Champions list/
+  detail/reactivate pages' `profiles.select(...clubs(...))` embed was
+  ambiguous (`profiles` has two FKs to `clubs`: `club_id` and
+  `deactivated_club_id`) and PostgREST silently errored, which the pages
+  swallowed by only destructuring `{ data }` — so it rendered as an empty
+  "no champions yet" list instead of surfacing the error. This had been
+  latent since Epic 7/8 shipped; never caught because no real champions with
+  a `club_id` existed in the DB until Epic 9 testing created some. Fixed by
+  disambiguating to `clubs!profiles_club_id_fkey(...)` in all three files.
+
 ### Not started yet
 - Event & Calendar view, Super Admin read-only (Epic 6).
-- Permission Management (Epic 9).
 - Everything on the Champion side (Gatekeeper management, Champion
   dashboard, events, announcements, resource access) — BLOCKED until
   Champion user stories are written by the BA.

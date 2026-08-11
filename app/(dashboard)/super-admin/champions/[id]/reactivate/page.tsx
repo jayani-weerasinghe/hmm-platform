@@ -9,7 +9,7 @@ export default async function ReactivateChampionPage({ params }: { params: Promi
   const [{ data: champion }, { data: clubs }] = await Promise.all([
     supabase
       .from('profiles')
-      .select('id, full_name, email, club_id, is_active, clubs(id, name, is_active)')
+      .select('id, full_name, email, club_id, is_active, clubs!profiles_club_id_fkey(id, name, is_active)')
       .eq('id', id)
       .eq('role', 'champion')
       .single(),

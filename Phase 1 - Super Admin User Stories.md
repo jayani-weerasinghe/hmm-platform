@@ -794,62 +794,214 @@ THEN the system shall display only matching results
 
 **Epic 9: Permission Management**
 
-**Story 9.1 — Define & Update Role Permissions**
+**Story 9.0 — Effective Permission Resolution**
 
-**As a**  
-Super Admin
-
-**I want to**  
-define and update the set of permissions available to the Champion and Gatekeeper roles
-
-**So that**  
-the platform's access model can evolve as the program grows, without requiring a system change
+| As a | Super Admin |
+| :---- | :---- |
+| **I want to** | have one clear, predictable rule for which setting applies when a user's role, group(s), and individual exception disagree on the same permission |
+| **So that** | the system's behavior is never ambiguous, and I can reason about any user's actual access just by knowing this one rule |
 
 **Description**  
-Covers Section 5.2.8 — a flexible permission framework covering actions such as creating announcements, managing events, and managing Gatekeepers.
+This story defines the resolution engine that Stories 9.1–9.4 all depend on. It doesn't introduce a new UI — it's the rule the system applies every time it needs to answer the question "does this user currently have permission X?"
+
+The model follows specificity-wins resolution (the pattern used in Windows NTFS/Active Directory ACL inheritance, where a permission set directly on an object overrides one inherited from a group): the most specific source that has an explicit opinion on a given permission is the one that counts. Less specific sources are not combined, added, or blended with it — they are simply not consulted once a more specific source has spoken.
+
+This is a deliberate choice over the alternative real-world standard (AWS IAM's additive-union-with-explicit-deny model), because that model requires reasoning about "explicit deny beats any allow" as a separate concept — a harder mental model for the non-technical Super Admins and Champions this platform is built for (per the NFR Usability requirement). Specificity-wins matches what a Super Admin intuitively expects: "I set this directly on them, so that's final."
+
+**Precedence Order (most specific to least specific):**
+
+1. Individual Exception (Story 9.2)  
+2. Group Setting (Story 9.3) — if a user belongs to multiple groups with conflicting settings for the same permission, see Scenario 04 below  
+3. Role Default (Story 9.1)
+
+**Worked Example**
+
+| Permission  | Role Default (Champion)  | Group ("Club A Champions")  | Individual Exception  | Effective Result  | Why  |
+| :---- | :---- | :---- | ----- | :---- | :---- |
+| Create Announcements  | Allow  | Allow  | \- | Allow  | No override exists; role default applies  |
+| Manage Events  | Deny  | Allow  | \- | Allow  | Group is more specific than role; role is not consulted  |
+| Manage Gatekeepers  | Allow  | Allow  | Deny  | Deny  | Individual is most specific; role and group are not consulted  |
+
+**Acceptance Criteria**
+
+**Scenario 01: Individual Exception Overrides Everything**  
+GIVEN a user has an individual exception set for a permission  
+WHEN the system evaluates that permission for the user  
+THEN the individual exception's value shall be the effective result, regardless of what the role default or any group setting says
+
+**Scenario 02: Group Overrides Role Default (No Individual Exception)**  
+GIVEN a user has no individual exception for a permission, but belongs to a group with a setting for it  
+WHEN the system evaluates that permission  
+THEN the group's value shall be the effective result, regardless of the role default
+
+**Scenario 03: Role Default Applies as Fallback**  
+GIVEN a user has no individual exception and belongs to no group with a setting for a given permission  
+WHEN the system evaluates that permission  
+THEN the role default shall be the effective result
+
+**Scenario 04: Conflicting Group Settings (Multiple Group Membership)**  
+GIVEN a user belongs to two or more groups with different settings for the same permission, and no individual exception exists  
+WHEN the system evaluates that permission  
+THEN the system shall apply Deny-Overrides: if any group the user belongs to denies the permission, the effective result is Deny — even if other groups the user belongs to allow it
+
+*Rationale: this follows the XACML Deny-Overrides combining algorithm, the same principle used in NTFS/Active Directory group ACL resolution and AWS IAM policy evaluation. It is the converging standard across the major real-world implementations of this exact conflict — not a discretionary call.*
+
+**Scenario 05: No Blending or Additive Combination**  
+GIVEN multiple sources (role, group, individual) have settings for the same permission  
+WHEN the system evaluates that permission  
+THEN exactly one source's value shall be used as-is — sources are never merged, averaged, or additively combined
+
+**Scenario 06: Resolution Is Deterministic and Re-Evaluated Live**  
+GIVEN any underlying source changes (e.g., an individual exception is revoked)  
+WHEN the system next evaluates that permission for the user  
+THEN the effective result shall immediately reflect the new highest-precedence source available, with no caching of the old result
+
+**Scenario 07: Effective Permission Visibility**  
+GIVEN a Super Admin views a specific user's permissions  
+WHEN the screen loads  
+THEN the system shall show, for each permission, the effective result AND which layer (Individual / Group / Role) it came from — not just the final Allow/Deny — so the Super Admin can see why a user has the access they have without manually checking all three layers
+
+**Story 9.1 — Role-Based Default Permissions** 
+
+| As a | Super Admin |
+| :---- | :---- |
+| **I want to** | define and update the default permissions available to the Champion and Gatekeeper roles  |
+| **So that** | the platform's baseline access model can evolve without needing a system change  |
+
+**Description**  
+Implements core RBAC (NIST/ANSI INCITS 359-2004): permissions attached to roles, users acquire them by holding that role. This is the mandatory baseline layer, every other layer below is an exception to this default, not a replacement for it. 
 
 **Acceptance Criteria**
 
 **Scenario 01: Update Default Role Permissions**  
-GIVEN a Super Admin modifies the default permission set for the Champion role (e.g., enabling "create announcements")  
-WHEN the change is saved  
-THEN all Champions without an individual override shall inherit the updated default permission
+GIVEN a Super Admin enables or disables a permission for the Champion role default
 
-**Scenario 02: Permission Set Applies Immediately**  
-GIVEN a permission is enabled or disabled for a role  
-WHEN a user of that role next accesses the platform (or refreshes an active session)  
-THEN the system shall enforce the updated permission set
+WHEN the change is saved
+
+THEN all Champions without a Group or Individual exception (see 9.2, 9.3) shall inherit the updated default 
+
+**Scenario 02: Audit Trail**
+
+GIVEN a role default permission changes
+
+WHEN saved
+
+THEN the system shall log the role, permission, prior value, new value, the Super Admin who made the change, and timestamp 
 
 ---
 
-**Story 9.2 — Enable/Disable Permissions for Individual Users**
+**Story 9.2 — Individual Permission Exception** 
 
-**As a**  
-Super Admin
-
-**I want to**  
-enable or disable specific permissions for an individual Champion or Gatekeeper, overriding the role default
-
-**So that**  
-I can grant or restrict access on a case-by-case basis without changing the permission model for the entire role
+| As a | Super Admin |
+| :---- | :---- |
+| **I want to** | grant or revoke a specific permission for one named user, as an exception to their role/group settings  |
+| **So that** | rare one-off access needs can be met without restructuring roles or groups  |
 
 **Description**  
-Covers the individual-level override capability described in Section 5.2.8.
+Direct-to-user grants are supported in every major IAM system but are treated as the **exception path**, not the default way to manage access, because they're the hardest thing to audit and the easiest to forget. This story exists for genuinely one-off cases; scenarios involving more than one user should use Groups (Story 9.3), not this.
 
 **Acceptance Criteria**
 
-**Scenario 01: Grant Individual Override**  
-GIVEN a Champion's role does not have "manage events" enabled by default  
-WHEN the Super Admin enables this specific permission for that individual Champion  
-THEN only that Champion shall gain access to event management, while other Champions remain unaffected
+**Scenario 01: Grant Individual Exception** 
 
-**Scenario 02: Revoke Individual Override**  
-GIVEN an individual override was previously granted  
-WHEN the Super Admin disables it  
-THEN that user's access shall revert to the role's default permission set
+GIVEN a user needs a permission their role/group doesn't grant
 
-**Scenario 03: Audit Trail for Permission Changes**  
-GIVEN a Super Admin changes any permission (role-level or individual)  
-WHEN the change is saved  
-THEN the system shall log which permission was changed, for which user or role, by whom, and when
+WHEN a Super Admin creates an individual override for that one user
+
+THEN only that user is affected, and the override takes precedence over their group and role settings 
+
+**Scenario 02: Individual Exceptions Are Flagged for Review**
+
+GIVEN one or more individual exceptions exist
+
+WHEN a Super Admin views the Permission Management screen
+
+THEN the system shall surface a distinct, filterable list of all users with active individual exceptions, so they don't go unnoticed during periodic access review 
+
+**Scenario 03: Audit Trail**  
+GIVEN an individual exception is granted or revoked
+
+WHEN saved
+
+THEN the system shall log the user, permission, the Super Admin who made the change, and timestamp 
+
+---
+
+### **Story 9.3 — Permission Groups**
+
+| As a | Super Admin |
+| :---- | :---- |
+| **I want to** | create named groups of users and assign permissions to the group as a whole |
+| **So that** |  I can grant the same access to multiple people at once, and manage it as a single ongoing setting rather than repeating the same change per person |
+
+**Description**  
+This is the standard mechanism (AWS IAM Groups, Azure AD Groups, Google Workspace Groups, Okta Groups) for "same access, multiple people" — it replaces the old idea of a one-time bulk override. Group membership is persistent: adding someone to the group grants the permission; removing them revokes it. A user may belong to multiple groups and gets the union of their groups' permissions, subject to Story 9.2 taking precedence when an individual exception exists.
+
+**Acceptance Criteria**
+
+**Scenario 01: Create Group and Assign Permission**  
+ GIVEN a Super Admin creates a named group and adds members  
+ WHEN they enable a permission at the group level  
+ THEN all current members shall receive that permission
+
+**Scenario 02: New Member Inherits Group Permissions**  
+ GIVEN a group has permissions set  
+ WHEN a new user is added to the group  
+ THEN they shall immediately inherit those permissions
+
+**Scenario 03: Removed Member Loses Group-Derived Permissions**  
+ GIVEN a user is removed from a group  
+ WHEN the removal is confirmed  
+ THEN they lose any permission that came only from that group, reverting to their role default (or another group they still belong to)
+
+**Scenario 04: Precedence Order**  
+GIVEN a user may be subject to a role default, one or more groups, and an individual exception simultaneously  
+WHEN the system evaluates their effective permissions  
+THEN the order shall be: **Individual Exception (9.2) \> Group (9.3) \> Role Default (9.1)**
+
+**Scenario 05: Audit Trail**  
+GIVEN a group's membership or permissions change  
+WHEN saved  
+THEN the system shall log the group, the change (membership or permission), the Super Admin who made it, and timestamp
+
+---
+
+### **Story 9.4 — Temporary Role Delegation (Out-of-Office)**
+
+### 
+
+| As a | Super Admin or (Champion) |
+| :---- | :---- |
+| **I want to** | delegate my entire role's permission set to another user for a fixed period |
+| **So that** | my responsibilities are covered while I'm away, without a permanent access change and without hand-picking individual permissions |
+
+**Description**  
+Follows the standard Assume-Role / delegated-administration pattern (AWS STS AssumeRole; Exchange/Outlook mailbox delegation; Salesforce Delegated Administration). Delegation is **whole-role**, not permission-by-permission — there's no established industry pattern for granular delegation, and it would add real complexity (an ambiguous precedence question against Stories 9.2/9.3) without a standard to resolve it. During the delegation window, the delegate temporarily gains the delegator's full effective permission set **in addition to** their own — it does not touch or override the delegate's existing permissions.
+
+**Acceptance Criteria**
+
+**Scenario 01: Create Delegation**  
+GIVEN a user wants to delegate their role before going on leave  
+WHEN they select a delegate and a start/end date  
+THEN the system shall schedule the delegation for that period
+
+**Scenario 02: Delegation Activates and Expires Automatically**  
+GIVEN a scheduled delegation's start or end date arrives  
+WHEN the system reaches that time  
+THEN the delegate's access shall be automatically granted or revoked, with no manual cleanup
+
+**Scenario 03: Delegate Retains Their Own Access**  
+GIVEN a delegation is active  
+WHEN the delegate's effective permissions are evaluated  
+THEN they shall have the union of their own permissions and the delegator's — the delegation adds access, it does not replace or restrict the delegate's existing access
+
+**Scenario 04: Delegator Deactivated Mid-Delegation**  
+GIVEN a delegator's account is deactivated while a delegation is active  
+WHEN the deactivation is processed  
+THEN the delegation shall end immediately and the delegate's borrowed access shall be revoked
+
+**Scenario 05: Audit Trail**  
+GIVEN any delegation event (created, activated, expired, manually ended)  
+WHEN it occurs  
+THEN the system shall log the delegator, delegate, role delegated, time period, and event type with timestamp
 

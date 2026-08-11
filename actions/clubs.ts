@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { writeAuditLog } from '@/lib/audit'
+import { endDelegationsForDeactivatedUser } from '@/actions/permissions'
 
 async function getActorId() {
   const supabase = await createClient()
@@ -140,6 +141,10 @@ export async function deactivateClubAction(formData: FormData) {
       affectedUsers: affected?.map(p => ({ id: p.id, role: p.role, name: p.full_name })) ?? [],
     },
   })
+
+  for (const member of affected ?? []) {
+    await endDelegationsForDeactivatedUser(member.id, user.id)
+  }
 
   revalidatePath(`/super-admin/clubs/${clubId}`)
   revalidatePath('/super-admin/clubs')

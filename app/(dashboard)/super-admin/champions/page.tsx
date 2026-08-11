@@ -14,7 +14,7 @@ export default async function ChampionsPage({
 
   let query = supabase
     .from('profiles')
-    .select('id, full_name, email, phone, is_active, club_id, clubs(id, name)')
+    .select('id, full_name, email, phone, is_active, club_id, clubs!profiles_club_id_fkey(id, name)')
     .eq('role', 'champion')
     .order('full_name')
 
