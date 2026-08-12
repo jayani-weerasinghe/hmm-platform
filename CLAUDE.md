@@ -175,8 +175,29 @@ password reuse rules).
   a `club_id` existed in the DB until Epic 9 testing created some. Fixed by
   disambiguating to `clubs!profiles_club_id_fkey(...)` in all three files.
 
+**Epic 6 — Event & Calendar (Story 6.1)** ✅ (verified 2026-08-11)
+- Super Admin read-only calendar at `/super-admin/events`: Month grid
+  (Monday-start, hand-rolled — no calendar library) and List view, toggled
+  and fully driven by URL params (`view`/`year`/`month`/`club`/`type`/`event`)
+  rather than local component state, specifically so opening/closing an
+  event's detail (Scenario 04) always returns to the exact same calendar
+  position without needing separate client-side state to track it.
+- Event tiles color-coded by type (`event-type.ts`): QPR session blue,
+  awareness program purple, workshop green, other gray.
+  `is_cancelled=true` events excluded from both views (Champions cancel
+  rather than delete events, per Epic 6/checklist 2.4 — matches the existing
+  dashboard `EventsWidget` convention).
+- Detail view is a centered modal (backdrop-click or × closes) — title,
+  type, date/time (range if `ends_at` set), venue, description (omitted
+  entirely if empty), max participants (`Not specified` if null), owning
+  club. No edit/delete controls anywhere (Champion-only per Phase 1).
+- Filter by club and/or event type, combinable, via plain `<select>`s that
+  push URL updates.
+- No events exist yet in the DB (Champion-side event creation is still
+  blocked) — verified with temporary seeded test events across clubs/types/
+  dates, then removed; the page's empty state was also checked.
+
 ### Not started yet
-- Event & Calendar view, Super Admin read-only (Epic 6).
 - Everything on the Champion side (Gatekeeper management, Champion
   dashboard, events, announcements, resource access) — BLOCKED until
   Champion user stories are written by the BA.
