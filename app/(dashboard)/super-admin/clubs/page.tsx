@@ -23,17 +23,19 @@ export default async function ClubsPage({
 
   const { data: clubs } = await query
 
-  // Fetch champion counts for all clubs in one query
+  // Fetch active Champions for all clubs in one query
   const { data: champRows } = await supabase
     .from('profiles')
-    .select('club_id')
+    .select('club_id, full_name')
     .eq('role', 'champion')
     .eq('is_active', true)
+    .order('full_name')
 
-  const champCountByClub: Record<string, number> = {}
+  const championsByClub: Record<string, string[]> = {}
   for (const row of champRows ?? []) {
     if (row.club_id) {
-      champCountByClub[row.club_id] = (champCountByClub[row.club_id] ?? 0) + 1
+      championsByClub[row.club_id] ??= []
+      championsByClub[row.club_id].push(row.full_name)
     }
   }
 
@@ -64,12 +66,14 @@ export default async function ClubsPage({
                 <th className="px-6 py-3">Name</th>
                 <th className="px-6 py-3">Location</th>
                 <th className="px-6 py-3">Status</th>
-                <th className="px-6 py-3">Active Champions</th>
+                <th className="px-6 py-3">Champion(s)</th>
                 <th className="px-6 py-3"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {clubs.map(club => (
+              {clubs.map(club => {
+                const champions = championsByClub[club.id] ?? []
+                return (
                 <tr key={club.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 font-mono text-sm text-gray-700">{club.club_code ?? '—'}</td>
                   <td className="px-6 py-4 text-sm font-medium text-gray-900">{club.name}</td>
@@ -83,7 +87,19 @@ export default async function ClubsPage({
                       {club.is_active ? 'Active' : 'Inactive'}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{champCountByClub[club.id] ?? 0}</td>
+                  <td className="px-6 py-4 text-sm text-gray-600">
+                    {champions.length === 0 ? (
+                      club.is_active ? (
+                        <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                          No active Champion
+                        </span>
+                      ) : '—'
+                    ) : champions.length <= 2 ? (
+                      champions.join(', ')
+                    ) : (
+                      `${champions.slice(0, 2).join(', ')} +${champions.length - 2} more`
+                    )}
+                  </td>
                   <td className="px-6 py-4 text-right text-sm">
                     <Link href={`/super-admin/clubs/${club.id}`} className="mr-3 text-blue-600 hover:text-blue-800">
                       View
@@ -93,7 +109,8 @@ export default async function ClubsPage({
                     </Link>
                   </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         )}

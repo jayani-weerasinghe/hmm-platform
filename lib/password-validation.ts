@@ -1,13 +1,33 @@
 // Client-safe — no server-only imports
 
-const COMMON_PASSWORDS = new Set([
-  'Password1!', 'Password123!', 'Admin123!', 'Welcome1!', 'Qwerty123!',
-  'Passw0rd!', 'P@ssw0rd', 'P@ssword1', 'Summer2024!', 'Winter2024!',
-  'Spring2024!', 'Autumn2024!', 'Abc12345!', 'Test1234!', 'Hello123!',
-  'Dragon123!', 'Master123!', 'Login123!', 'Password@1', 'Changeme1!',
-  'Letmein1!', 'Monkey123!', 'Shadow123!', 'Sunshine1!', 'Princess1!',
-  'Welcome123!', 'iloveyou1A!', 'Trustno1!', 'Football1!', 'Baseball1!',
-])
+// Root words for the most commonly used/breached passwords. Checked against
+// a leetspeak-normalized, letters-only reduction of the input (see
+// normalizeForWeaknessCheck) so predictable variants like "Passw0rd!",
+// "MyPassword1!", or "P@ssword123" are caught too, not just exact matches —
+// a plain exact-string list would almost never fire, since anything that
+// already satisfies the character-class rules below is unlikely to be a
+// byte-for-byte match against a small fixed list.
+const COMMON_PASSWORD_BASES = [
+  'password', 'admin', 'welcome', 'qwerty', 'asdf', 'letmein', 'trustno',
+  'iloveyou', 'monkey', 'dragon', 'master', 'shadow', 'sunshine', 'princess',
+  'football', 'baseball', 'superman', 'batman', 'freedom', 'whatever',
+  'secret', 'access', 'hello', 'changeme', 'login', 'test', 'summer',
+  'winter', 'spring', 'autumn', 'ninja', 'hunter', 'soccer', 'hockey',
+  'computer', 'internet', 'chocolate', 'cookie', 'starwars', 'pokemon',
+]
+
+function normalizeForWeaknessCheck(password: string): string {
+  return password
+    .toLowerCase()
+    .replace(/0/g, 'o')
+    .replace(/1/g, 'i')
+    .replace(/3/g, 'e')
+    .replace(/4/g, 'a')
+    .replace(/5/g, 's')
+    .replace(/@/g, 'a')
+    .replace(/\$/g, 's')
+    .replace(/[^a-z]/g, '')
+}
 
 export interface UserContext {
   name?: string | null
@@ -50,7 +70,16 @@ export function validatePassword(
       errors.push('Cannot contain your email address')
   }
 
-  if (COMMON_PASSWORDS.has(password))
+  // Flag if a common root makes up at least half the letters in the
+  // password, rather than any substring match — so a long passphrase that
+  // merely contains a dictionary word (e.g. "MyGreatSecretPlan99!") isn't
+  // penalized the same as a password that's basically just that word
+  // dressed up with digits/punctuation (e.g. "Secret123!").
+  const normalized = normalizeForWeaknessCheck(password)
+  const isCommon = normalized.length > 0 && COMMON_PASSWORD_BASES.some(
+    base => normalized.includes(base) && base.length / normalized.length >= 0.5
+  )
+  if (isCommon)
     errors.push('This password is too commonly used — choose a more unique one')
 
   return { valid: errors.length === 0, errors }

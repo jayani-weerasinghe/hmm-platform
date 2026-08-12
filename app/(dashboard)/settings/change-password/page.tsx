@@ -26,10 +26,11 @@ export default function ChangePasswordPage() {
             ✓
           </div>
           <h2 className="mb-2 text-lg font-semibold text-gray-900">Password changed</h2>
-          {/* Scenario 08: confirmation email sent by Supabase automatically */}
+          {/* Scenario 08 (confirmation email) is pending: no transactional email
+              provider is configured yet, so we don't claim one was sent. */}
           <p className="mb-6 text-sm text-gray-500">
-            Your password has been updated. A confirmation email has been sent to your registered
-            address. If you did not make this change, please contact support immediately.
+            Your password has been updated. If you did not make this change, please contact
+            support immediately.
           </p>
           <Link
             href=".."

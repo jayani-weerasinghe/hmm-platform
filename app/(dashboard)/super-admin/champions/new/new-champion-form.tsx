@@ -9,26 +9,6 @@ interface Club { id: string; name: string }
 export function NewChampionForm({ clubs }: { clubs: Club[] }) {
   const [state, formAction, isPending] = useActionState(createChampionAction, null)
 
-  if (state?.success) {
-    return (
-      <div className="mx-auto max-w-xl rounded-xl bg-white p-8 text-center ring-1 ring-gray-200">
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-green-100 text-green-600 text-xl font-bold">✓</div>
-        <h2 className="mb-2 text-lg font-semibold text-gray-900">Champion created</h2>
-        <p className="mb-6 text-sm text-gray-500">
-          An invitation email has been sent with instructions to set their password and access the platform.
-        </p>
-        <div className="flex justify-center gap-3">
-          <Link href="/super-admin/champions/new" className="text-sm text-blue-600 hover:text-blue-800">
-            Create another
-          </Link>
-          <Link href="/super-admin/champions" className="text-sm text-gray-600 hover:text-gray-900">
-            View all champions
-          </Link>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <>
       <div className="mb-6">

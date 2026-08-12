@@ -9,7 +9,12 @@ export function LoginForm() {
   const [state, formAction, isPending] = useActionState(loginAction, null)
   const searchParams = useSearchParams()
   const resetSuccess = searchParams.get('reset') === 'success'
-  const sessionExpired = searchParams.get('error') === 'session_expired'
+  const errorParam = searchParams.get('error')
+  const sessionExpired = errorParam === 'session_expired'
+  const forcedLogoutMessage =
+    errorParam === 'club_inactive' ? 'Your club is currently inactive. Please contact your administrator.' :
+    errorParam === 'account_inactive' ? 'Your account has been deactivated. Please contact an administrator.' :
+    null
   const [showPassword, setShowPassword] = useState(false)
 
   return (
@@ -28,6 +33,11 @@ export function LoginForm() {
       {sessionExpired && (
         <div className="mb-5 rounded-xl bg-amber-50 p-3 text-sm text-amber-700">
           Your session expired due to inactivity. Please sign in again.
+        </div>
+      )}
+      {forcedLogoutMessage && (
+        <div className="mb-5 rounded-xl bg-red-50 p-3 text-sm text-red-700">
+          {forcedLogoutMessage}
         </div>
       )}
       {state?.error && (

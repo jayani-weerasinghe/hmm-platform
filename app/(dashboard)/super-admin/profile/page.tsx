@@ -10,6 +10,12 @@ const ROLE_LABELS: Record<string, string> = {
   gatekeeper:  'Gatekeeper',
 }
 
+const ACCESS_LEVEL_LABELS: Record<string, string> = {
+  super_admin: 'Full system access (Super Admin)',
+  champion:    'Club-level access (Champion)',
+  gatekeeper:  'Mobile app access (Gatekeeper)',
+}
+
 export default async function ProfilePage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -22,6 +28,7 @@ export default async function ProfilePage() {
     .single()
 
   if (!profile) redirect('/login')
+  if (profile.role !== 'super_admin') redirect(profile.role === 'champion' ? '/champion' : '/login')
 
   return (
     <div className="p-8">
@@ -71,7 +78,7 @@ export default async function ProfilePage() {
               </label>
               <input
                 readOnly
-                value="Full system access (Super Admin)"
+                value={ACCESS_LEVEL_LABELS[profile.role] ?? profile.role}
                 className="mt-2 w-full cursor-not-allowed rounded-xl border border-[#E2E8F0] bg-gray-50 px-4 py-3 text-sm text-gray-500"
               />
             </div>

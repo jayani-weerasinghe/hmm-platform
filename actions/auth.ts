@@ -122,6 +122,11 @@ export async function resetPasswordAction(
     entityId: user.id,
   })
 
+  // Sign out the recovery session so the redirect below actually reaches the
+  // login page instead of being bounced straight to the dashboard by
+  // middleware's "authenticated user hitting /login" rule.
+  await supabase.auth.signOut()
+
   redirect('/login?reset=success')
 }
 
@@ -178,7 +183,7 @@ export async function changePasswordAction(
   const { error: updateError } = await supabase.auth.updateUser({ password: newPassword })
   if (updateError) return { error: 'Failed to update password. Please try again.' }
 
-  // Scenario 06: record hash + audit log; Scenario 07: Supabase invalidates other sessions automatically
+  // Scenario 06: record hash + audit log
   await recordPasswordHash(user.id, newPassword)
   await writeAuditLog({
     actorId: user.id,
@@ -186,6 +191,10 @@ export async function changePasswordAction(
     entityType: 'user',
     entityId: user.id,
   })
+
+  // Scenario 07: keep this session active, but require re-authentication on
+  // every other active session/device.
+  await supabase.auth.signOut({ scope: 'others' })
 
   return { success: true }
 }

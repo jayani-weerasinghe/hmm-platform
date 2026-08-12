@@ -92,6 +92,11 @@ export default async function ClubDetailPage({
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-500">
           Champions ({champions?.length ?? 0})
         </h2>
+        {club.is_active && !(champions ?? []).some(c => c.is_active) && (
+          <div className="mb-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-700">
+            This club has no active Champion.
+          </div>
+        )}
         <div className="overflow-hidden rounded-xl bg-white ring-1 ring-gray-200">
           {!champions || champions.length === 0 ? (
             <p className="p-6 text-sm text-gray-400">No champions assigned to this club.</p>
