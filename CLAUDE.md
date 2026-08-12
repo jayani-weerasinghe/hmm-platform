@@ -174,6 +174,24 @@ of this log before trusting old "✅" claims elsewhere; several were inaccurate)
   action's `FormData` directly to `admin.storage.from(...).upload()` fails;
   convert via `Buffer.from(await file.arrayBuffer())` first (see
   `actions/resources.ts`).
+- **2026-08-12 visual redesign** (list/create/edit pages only — no functional
+  change): re-skinned to match `Design/resources-design.html` +
+  `resources-design.png`, extracted via computed-style inspection in a real
+  browser (the HTML is a self-unpacking "bundled" export — reading it as
+  static text shows only a loading shim, it must be rendered). New files:
+  `fonts.ts` (Archivo + Manrope, scoped to this section only — the rest of
+  the app stays on Plus Jakarta Sans/Inter), `design-tokens.ts` (colors/type
+  labels), `resource-type-icon.tsx`, `resource-card.tsx`, `resource-section.tsx`,
+  `add-resource-card.tsx`, `stat-tile.tsx`. Resources are grouped into
+  card-grid sections by their existing free-text `category` field (not
+  `type` — the mockup's categories don't map to our type enum). The mockup
+  shows fabricated LMS-style metrics (Active Learners, Completion Rate,
+  photo thumbnails, lesson/view counts) that don't exist in this schema —
+  per an explicit decision with the user, these were replaced with only
+  real, honest data (Total Resources / Published This Month / by-type
+  breakdown; a type-colored icon block instead of a photo) rather than
+  fabricated or schema-expanded to match. "View all →" on a section is a
+  client-side expand toggle (>3 items), not a new page/feature.
 
 **Epic 5 — Announcement Management (Stories 5.1–5.2)** ✅ (verified 2026-08-10)
 - Create: title/body/publish_date (date, immediate or future — RLS's

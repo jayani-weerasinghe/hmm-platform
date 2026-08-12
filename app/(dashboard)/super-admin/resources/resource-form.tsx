@@ -3,6 +3,8 @@
 import { useActionState, useState } from 'react'
 import Link from 'next/link'
 import { createResourceAction, updateResourceAction, type ResourceActionState } from '@/actions/resources'
+import { archivo, manrope } from './fonts'
+import { colors } from './design-tokens'
 
 interface ResourceValues {
   id: string
@@ -15,7 +17,14 @@ interface ResourceValues {
   content_text: string | null
 }
 
-export function ResourceForm({ resource }: { resource?: ResourceValues }) {
+const inputStyle: React.CSSProperties = {
+  border: `1px solid ${colors.border}`,
+  color: colors.navy,
+}
+
+const labelClass = `${manrope.className} block text-[13px] font-semibold`
+
+export function ResourceForm({ resource, defaultCategory }: { resource?: ResourceValues; defaultCategory?: string }) {
   const isEdit = !!resource
   const action = isEdit ? updateResourceAction : createResourceAction
   const [state, formAction, isPending] = useActionState<ResourceActionState, FormData>(action, null)
@@ -26,15 +35,17 @@ export function ResourceForm({ resource }: { resource?: ResourceValues }) {
   return (
     <div className="p-8">
       <div className="mb-6">
-        <Link href={backHref} className="text-sm text-blue-600 hover:text-blue-800">
+        <Link href={backHref} className={`${manrope.className} text-[13px] font-bold`} style={{ color: colors.link }}>
           ← Back to Resources
         </Link>
-        <h1 className="mt-3 text-2xl font-semibold text-gray-900">{isEdit ? 'Edit Resource' : 'Add Resource'}</h1>
+        <h1 className={`${archivo.className} mt-3 text-[24px] font-extrabold`} style={{ color: colors.navy, letterSpacing: '-0.4px' }}>
+          {isEdit ? 'Edit Resource' : 'Add Resource'}
+        </h1>
       </div>
 
-      <div className="mx-auto max-w-xl rounded-xl bg-white p-8 ring-1 ring-gray-200">
+      <div className="mx-auto max-w-xl rounded-[18px] bg-white p-8" style={{ border: `1px solid ${colors.border}` }}>
         {state?.error && (
-          <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">
+          <div className={`${manrope.className} mb-5 rounded-xl p-3 text-[13px]`} style={{ backgroundColor: '#FBEAE8', color: colors.danger }} role="alert">
             {state.error}
           </div>
         )}
@@ -47,8 +58,8 @@ export function ResourceForm({ resource }: { resource?: ResourceValues }) {
           )}
 
           <div>
-            <label htmlFor="title" className="block text-sm font-medium text-gray-700">
-              Title <span className="text-red-500">*</span>
+            <label htmlFor="title" className={labelClass} style={{ color: colors.navy }}>
+              Title <span style={{ color: colors.danger }}>*</span>
             </label>
             <input
               id="title"
@@ -56,12 +67,13 @@ export function ResourceForm({ resource }: { resource?: ResourceValues }) {
               type="text"
               required
               defaultValue={resource?.title}
-              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={`${manrope.className} mt-1.5 w-full rounded-[10px] px-3 py-2 text-[13.5px] focus:outline-none`}
+              style={inputStyle}
             />
           </div>
 
           <div>
-            <label htmlFor="description" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="description" className={labelClass} style={{ color: colors.navy }}>
               Description
             </label>
             <textarea
@@ -69,14 +81,15 @@ export function ResourceForm({ resource }: { resource?: ResourceValues }) {
               name="description"
               rows={2}
               defaultValue={resource?.description ?? ''}
-              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={`${manrope.className} mt-1.5 w-full rounded-[10px] px-3 py-2 text-[13.5px] focus:outline-none`}
+              style={inputStyle}
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label htmlFor="type" className="block text-sm font-medium text-gray-700">
-                Type <span className="text-red-500">*</span>
+              <label htmlFor="type" className={labelClass} style={{ color: colors.navy }}>
+                Type <span style={{ color: colors.danger }}>*</span>
               </label>
               <select
                 id="type"
@@ -84,7 +97,8 @@ export function ResourceForm({ resource }: { resource?: ResourceValues }) {
                 required
                 value={type}
                 onChange={e => setType(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={`${manrope.className} mt-1.5 w-full rounded-[10px] px-3 py-2 text-[13.5px] focus:outline-none`}
+                style={inputStyle}
               >
                 <option value="video">Video</option>
                 <option value="article">Article</option>
@@ -93,22 +107,23 @@ export function ResourceForm({ resource }: { resource?: ResourceValues }) {
               </select>
             </div>
             <div>
-              <label htmlFor="category" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="category" className={labelClass} style={{ color: colors.navy }}>
                 Category
               </label>
               <input
                 id="category"
                 name="category"
                 type="text"
-                defaultValue={resource?.category ?? ''}
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+                defaultValue={resource?.category ?? defaultCategory ?? ''}
+                className={`${manrope.className} mt-1.5 w-full rounded-[10px] px-3 py-2 text-[13.5px] focus:outline-none`}
+                style={inputStyle}
               />
             </div>
           </div>
 
           <div>
-            <label htmlFor="publication_date" className="block text-sm font-medium text-gray-700">
-              Publication Date <span className="text-red-500">*</span>
+            <label htmlFor="publication_date" className={labelClass} style={{ color: colors.navy }}>
+              Publication Date <span style={{ color: colors.danger }}>*</span>
             </label>
             <input
               id="publication_date"
@@ -116,14 +131,15 @@ export function ResourceForm({ resource }: { resource?: ResourceValues }) {
               type="date"
               required
               defaultValue={resource?.publication_date}
-              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={`${manrope.className} mt-1.5 w-full rounded-[10px] px-3 py-2 text-[13.5px] focus:outline-none`}
+              style={inputStyle}
             />
           </div>
 
           {type === 'article' ? (
             <>
               <div>
-                <label htmlFor="content_text" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="content_text" className={labelClass} style={{ color: colors.navy }}>
                   Article Content
                 </label>
                 <textarea
@@ -131,11 +147,12 @@ export function ResourceForm({ resource }: { resource?: ResourceValues }) {
                   name="content_text"
                   rows={6}
                   defaultValue={resource?.content_text ?? ''}
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className={`${manrope.className} mt-1.5 w-full rounded-[10px] px-3 py-2 text-[13.5px] focus:outline-none`}
+                  style={inputStyle}
                 />
               </div>
               <div>
-                <label htmlFor="content_url" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="content_url" className={labelClass} style={{ color: colors.navy }}>
                   External Link
                 </label>
                 <input
@@ -144,30 +161,36 @@ export function ResourceForm({ resource }: { resource?: ResourceValues }) {
                   type="url"
                   placeholder="https://…"
                   defaultValue={resource?.content_url && /^https?:\/\//i.test(resource.content_url) ? resource.content_url : ''}
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className={`${manrope.className} mt-1.5 w-full rounded-[10px] px-3 py-2 text-[13.5px] focus:outline-none`}
+                  style={inputStyle}
                 />
-                <p className="mt-1 text-xs text-gray-400">Provide article content, an external link, or both.</p>
+                <p className={`${manrope.className} mt-1.5 text-[12px]`} style={{ color: colors.description }}>
+                  Provide article content, an external link, or both.
+                </p>
               </div>
             </>
           ) : (
             <>
               <div>
-                <label htmlFor="file" className="block text-sm font-medium text-gray-700">
-                  Upload File{type === 'document' && !resource ? <span className="text-red-500"> *</span> : ''}
+                <label htmlFor="file" className={labelClass} style={{ color: colors.navy }}>
+                  Upload File{type === 'document' && !resource ? <span style={{ color: colors.danger }}> *</span> : ''}
                 </label>
                 <input
                   id="file"
                   name="file"
                   type="file"
                   accept={type === 'video' ? 'video/*' : undefined}
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className={`${manrope.className} mt-1.5 w-full rounded-[10px] px-3 py-2 text-[13.5px] focus:outline-none`}
+                  style={inputStyle}
                 />
                 {isEdit && resource?.content_url && !/^https?:\/\//i.test(resource.content_url) && (
-                  <p className="mt-1 text-xs text-gray-400">A file is already attached. Uploading a new one replaces it.</p>
+                  <p className={`${manrope.className} mt-1.5 text-[12px]`} style={{ color: colors.description }}>
+                    A file is already attached. Uploading a new one replaces it.
+                  </p>
                 )}
               </div>
               <div>
-                <label htmlFor="content_url" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="content_url" className={labelClass} style={{ color: colors.navy }}>
                   External URL
                 </label>
                 <input
@@ -176,9 +199,12 @@ export function ResourceForm({ resource }: { resource?: ResourceValues }) {
                   type="url"
                   placeholder="https://…"
                   defaultValue={resource?.content_url && /^https?:\/\//i.test(resource.content_url) ? resource.content_url : ''}
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className={`${manrope.className} mt-1.5 w-full rounded-[10px] px-3 py-2 text-[13.5px] focus:outline-none`}
+                  style={inputStyle}
                 />
-                <p className="mt-1 text-xs text-gray-400">Upload a file or link to an external URL (e.g. YouTube).</p>
+                <p className={`${manrope.className} mt-1.5 text-[12px]`} style={{ color: colors.description }}>
+                  Upload a file or link to an external URL (e.g. YouTube).
+                </p>
               </div>
             </>
           )}
@@ -187,13 +213,21 @@ export function ResourceForm({ resource }: { resource?: ResourceValues }) {
             <button
               type="submit"
               disabled={isPending}
-              className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-400"
+              className={`${archivo.className} rounded-[11px] text-[13.5px] font-extrabold disabled:opacity-60`}
+              style={{
+                backgroundColor: colors.amber,
+                color: colors.navy,
+                padding: '0 22px',
+                height: '46px',
+                boxShadow: `0 10px 22px -12px ${colors.amberShadow}`,
+              }}
             >
               {isPending ? (isEdit ? 'Saving…' : 'Publishing…') : (isEdit ? 'Save Changes' : 'Publish Resource')}
             </button>
             <Link
               href={backHref}
-              className="rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              className={`${manrope.className} flex items-center rounded-[11px] px-5 text-[13.5px] font-bold`}
+              style={{ border: `1px solid ${colors.border}`, color: colors.meta, height: '46px' }}
             >
               Cancel
             </Link>

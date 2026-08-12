@@ -2,6 +2,8 @@
 
 import { useRouter, usePathname } from 'next/navigation'
 import { useCallback } from 'react'
+import { manrope } from './fonts'
+import { colors } from './design-tokens'
 
 export function ResourceFilters({ q, type }: { q?: string; type?: string }) {
   const router = useRouter()
@@ -16,18 +18,20 @@ export function ResourceFilters({ q, type }: { q?: string; type?: string }) {
   }, [router, pathname, q, type])
 
   return (
-    <div className="flex gap-3">
+    <div className="flex gap-2.5">
       <input
         type="search"
-        placeholder="Search by title…"
+        placeholder="Search resources…"
         defaultValue={q}
         onChange={e => update('q', e.target.value)}
-        className="rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-700 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#F5A623]/40"
+        className={`${manrope.className} rounded-full bg-white px-4 py-2 text-[13.5px] focus:outline-none`}
+        style={{ border: `1px solid ${colors.border}`, color: colors.navy }}
       />
       <select
         defaultValue={type ?? ''}
         onChange={e => update('type', e.target.value)}
-        className="rounded-lg border border-gray-200 bg-white pl-4 pr-9 py-2.5 text-sm text-gray-700 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#F5A623]/40"
+        className={`${manrope.className} rounded-full bg-white px-4 py-2 text-[13.5px] focus:outline-none`}
+        style={{ border: `1px solid ${colors.border}`, color: colors.navy }}
       >
         <option value="">All types</option>
         <option value="video">Video</option>
