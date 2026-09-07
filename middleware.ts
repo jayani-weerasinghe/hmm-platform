@@ -46,17 +46,35 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Authenticated user hitting auth pages → send to their dashboard
-  if (user && (pathname === '/login' || pathname === '/forgot-password')) {
+  const needsRole =
+    user &&
+    (pathname === '/login' || pathname === '/forgot-password' ||
+     pathname.startsWith('/super-admin') || pathname.startsWith('/champion'))
+
+  if (needsRole) {
     const { data: profile } = await supabase
       .from('profiles')
       .select('role')
       .eq('id', user.id)
       .single()
 
-    const url = request.nextUrl.clone()
-    url.pathname = profile?.role === 'champion' ? '/champion' : '/super-admin'
-    return NextResponse.redirect(url)
+    const destination = profile?.role === 'champion' ? '/champion' : '/super-admin'
+
+    // Authenticated user hitting auth pages → send to their dashboard
+    if (pathname === '/login' || pathname === '/forgot-password') {
+      return NextResponse.redirect(new URL(destination, request.url))
+    }
+
+    // Role-gate the dashboard route groups themselves — RLS already scopes
+    // the underlying data per role, but pages under the wrong role's route
+    // group have no other guard, so a Champion could otherwise browse
+    // straight into Super Admin screens (and vice versa) by URL.
+    if (pathname.startsWith('/super-admin') && profile?.role !== 'super_admin') {
+      return NextResponse.redirect(new URL(destination, request.url))
+    }
+    if (pathname.startsWith('/champion') && profile?.role !== 'champion') {
+      return NextResponse.redirect(new URL(destination, request.url))
+    }
   }
 
   return supabaseResponse

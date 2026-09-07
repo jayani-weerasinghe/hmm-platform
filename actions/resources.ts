@@ -128,6 +128,15 @@ export async function updateResourceAction(
   const resourceId = formData.get('resource_id') as string
   const previousContentUrl = (formData.get('previous_content_url') as string | null) || null
   const fields = readCommonFields(formData)
+  const hasFile = !!(fields.file && fields.file.size > 0)
+
+  // The External URL field is intentionally left blank in the edit form when the
+  // resource's existing content is a stored file (it only pre-fills for http(s) URLs).
+  // So "no new file, no URL typed" means "leave the existing file alone", not "remove it".
+  if (fields.type !== 'article' && !hasFile && !fields.contentUrl && previousContentUrl) {
+    fields.contentUrl = previousContentUrl
+  }
+
   const validationError = validate(fields)
   if (validationError) return { error: validationError }
 
@@ -136,7 +145,6 @@ export async function updateResourceAction(
   if (!user) redirect('/login')
 
   let contentUrl = fields.contentUrl
-  const hasFile = !!(fields.file && fields.file.size > 0)
 
   if (hasFile) {
     try {
@@ -164,8 +172,9 @@ export async function updateResourceAction(
     return { error: error.message }
   }
 
-  // Replaced a stored file with a new one/URL — remove the old file from storage.
-  if (hasFile && previousContentUrl && !isExternalUrl(previousContentUrl)) {
+  // Replaced a stored file with a new file, a new URL, or removed it — remove the old
+  // file from storage whenever the resource no longer points at it.
+  if (previousContentUrl && !isExternalUrl(previousContentUrl) && contentUrl !== previousContentUrl) {
     await deleteResourceFile(previousContentUrl)
   }
 

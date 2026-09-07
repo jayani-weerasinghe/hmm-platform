@@ -34,6 +34,12 @@ export default async function ChampionDetailPage({
           <p className="mt-1 text-sm text-gray-400">{champion.email}</p>
         </div>
         <div className="flex gap-2">
+          <Link
+            href={`/super-admin/permissions/effective/${id}`}
+            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            View Permissions
+          </Link>
           {champion.is_active && (
             <Link
               href={`/super-admin/champions/${id}/edit`}

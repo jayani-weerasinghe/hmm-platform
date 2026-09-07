@@ -29,10 +29,12 @@ password reuse rules).
 ## Progress Log
 
 ### Sprint 1 — COMPLETE (all ACs verified 2026-08-03, re-audited against live code
-and fixed 2026-08-12 — see "2026-08-12 full-platform audit" note at the bottom
+and fixed 2026-08-12, then given a full live-browser QA pass across all 9
+epics + NFRs on 2026-09-07 — see "2026-09-07 full QA pass" note at the bottom
 of this log before trusting old "✅" claims elsewhere; several were inaccurate)
 
-**Epic 1 — Authentication & RBAC (Stories 1.1–1.4)** ✅ (re-verified 2026-08-12)
+**Epic 1 — Authentication & RBAC (Stories 1.1–1.4)** ✅ (re-verified 2026-08-12,
+live-QA-passed 2026-09-07)
 - Login with RBAC redirect, generic error (no field hint), deactivated-account
   check (distinguishes club_deactivated vs manual).
 - Forgot password: always-generic response (no email enumeration), Supabase
@@ -61,8 +63,25 @@ of this log before trusting old "✅" claims elsewhere; several were inaccurate)
   configured, so password-reset/change confirmation emails (1.2 Sc09, 1.3
   Sc08) are not actually sent. The UI no longer claims one was sent (fixed
   2026-08-12 — it previously did, which was worse than just missing).
+  **2026-09-07**: closed the *notification* half of this specific gap by
+  enabling Supabase's own built-in `mailer_notifications_password_changed_enabled`
+  toggle via the Management API (template was already provisioned, just
+  switched off) — actual inbox delivery not independently re-verified (no
+  inbox access in this session), but the feature is now correctly configured
+  end-to-end for both reset and change flows.
+- **2026-09-07 fix**: `middleware.ts`'s authenticated-user redirect (hit
+  `/login` or `/forgot-password` while already signed in) was cloning the
+  *full* incoming URL and only overwriting `.pathname`, so any dangling query
+  string (e.g. `?error=link_expired` from an already-used reset link opened
+  in a tab where the user happens to already be logged in) silently rode
+  along to the dashboard, where it's never read/displayed — the intended
+  "your link has expired" message was lost in that specific edge case. Fixed
+  by constructing a clean `new URL(destination, request.url)` instead of
+  cloning. Not a security issue (RLS/session state was always correct), just
+  a lost warning message. Re-verified live in both directions.
 
-**Epic 2 — Super Admin Dashboard (Story 2.1)** ✅ (rebuilt 2026-08-12 — see audit note)
+**Epic 2 — Super Admin Dashboard (Story 2.1)** ✅ (rebuilt 2026-08-12 — see audit note;
+live-QA-passed 2026-09-07)
 - All 6 spec widgets now actually render on the live page (an 2026-08-12 audit
   found the *previous* "✅" was wrong: the live page rendered a different,
   simpler set of components than the correctly-built ones this log claimed
@@ -93,8 +112,20 @@ of this log before trusting old "✅" claims elsewhere; several were inaccurate)
   `app/(dashboard)/super-admin/page.tsx`.
 - Active-clubs-only filter on all widgets (this part was already correct).
   Zero-states handled.
+- **2026-09-07 bug fix**: the Upcoming Events KPI tile (#5, top row) didn't
+  track its own Next 7/30 Days/All filter — the mini-list below it refetched
+  correctly on filter change, but the KPI number/caption above stayed frozen
+  on the initial 30-day value. Root cause: the two pieces (KPI tile in
+  `page.tsx`, mini-list in `EventsWidget`) had no shared state. Fixed by
+  lifting the filter/data/pending state into a new `UpcomingEventsProvider`
+  context in `components/dashboard/events-widget.tsx`, with the KPI tile and
+  mini-list both as consumers.
 
-**Epic 7 — Club Management (Stories 7.1–7.4)** ✅ (re-verified 2026-08-12)
+**Epic 7 — Club Management (Stories 7.1–7.4)** ✅ (re-verified 2026-08-12,
+live-QA-passed 2026-09-07 — full deactivate/reactivate cascade re-proven both
+live and via direct DB reads on a real test club/champion, including the
+"manually-deactivated users are never touched by a club-level action" case;
+no bugs found)
 - Create club: unique club_code + name, duplicate check, status Active on
   creation, audit log.
 - Edit club: name/location/description, audit log.
@@ -112,7 +143,8 @@ of this log before trusting old "✅" claims elsewhere; several were inaccurate)
 - Club detail: full info card + Champions table + Gatekeepers table, plus the
   same persistent "No active Champion" flag (2026-08-12).
 
-**Epic 3 — Profile Management (Story 3.1)** ✅ (fixed 2026-08-12)
+**Epic 3 — Profile Management (Story 3.1)** ✅ (fixed 2026-08-12,
+live-QA-passed 2026-09-07 — no bugs found)
 - View own profile: name, email, contact info (phone), role, access level —
   all displayed at /super-admin/profile.
 - **2026-08-12 fixes**: "Access level" was a hardcoded string that always
@@ -129,7 +161,9 @@ of this log before trusting old "✅" claims elsewhere; several were inaccurate)
 - Nav: "My Profile" link in the bottom sidebar section (amber active state);
   top-bar name+avatar is a clickable link to the profile page.
 
-**Epic 8 — Champion Account Management (Stories 8.1–8.4)** ✅ (re-verified 2026-08-12)
+**Epic 8 — Champion Account Management (Stories 8.1–8.4)** ✅ (re-verified 2026-08-12,
+live-QA-passed 2026-09-07 — OCC conflict handling and the privilege-escalation
+trigger both re-proven live end-to-end; no new bugs found)
 - Create: Supabase invite email (welcome + set-password link), duplicate-email
   check, audit log. One club per Champion enforced at data model level (a
   single scalar `club_id` column — structurally impossible to double-assign,
@@ -157,7 +191,8 @@ of this log before trusting old "✅" claims elsewhere; several were inaccurate)
   Super-Admin-initiated edits (8.2 Sc04) and on reactivation (8.3 Sc06)
   require a transactional email integration (Resend/SendGrid) not yet set up.
 
-**Epic 4 — Resource Management (Stories 4.1–4.2)** ✅ (verified 2026-08-10)
+**Epic 4 — Resource Management (Stories 4.1–4.2)** ✅ (verified 2026-08-10,
+live-QA-passed 2026-09-07 — see fix below)
 - Upload: video (file upload or external URL), article (rich-text-ish body
   and/or external link), document (file upload; PDF/Word/PPT/txt), other
   (file or URL) — title/description/category/publication_date common fields,
@@ -192,8 +227,21 @@ of this log before trusting old "✅" claims elsewhere; several were inaccurate)
   breakdown; a type-colored icon block instead of a photo) rather than
   fabricated or schema-expanded to match. "View all →" on a section is a
   client-side expand toggle (>3 items), not a new page/feature.
+- **2026-09-07 bug fix**: editing a file-based resource (Video/Document/Other)
+  *without* touching the file or URL field was rejected with "Upload a file
+  or provide an external URL." — the edit form only pre-fills the URL input
+  when the existing `content_url` is already an http(s) link, so a
+  file-backed resource's URL field renders blank, and `validate()` had no
+  way to tell "nothing submitted" apart from "clear it." A second, related
+  bug: the old-file-cleanup-on-replace only fired when a *new file* was
+  uploaded, so replacing a stored file with an external URL instead leaked
+  the old file in storage forever. Both fixed in `actions/resources.ts`:
+  falls back to the previous `content_url` when nothing new was submitted,
+  and cleanup now fires whenever the final content reference actually
+  changed (file→file, file→URL, or URL→file alike), not just file→file.
 
-**Epic 5 — Announcement Management (Stories 5.1–5.2)** ✅ (verified 2026-08-10)
+**Epic 5 — Announcement Management (Stories 5.1–5.2)** ✅ (verified 2026-08-10,
+live-QA-passed 2026-09-07 — no bugs found)
 - Create: title/body/publish_date (date, immediate or future — RLS's
   `NOW() >= publish_date` check makes future-scheduled announcements go
   live automatically with no cron needed) + optional expiry_date (RLS's
@@ -202,7 +250,9 @@ of this log before trusting old "✅" claims elsewhere; several were inaccurate)
 - List shows a computed status badge (Scheduled / Active / Expired).
   Edit/Delete both supported.
 
-**Epic 9 — Permission Management (Stories 9.0–9.4)** ✅ (verified 2026-08-11)
+**Epic 9 — Permission Management (Stories 9.0–9.4)** ✅ (verified 2026-08-11,
+live-QA-passed 2026-09-07, Sc07 screen built and live-tested 2026-09-07 —
+fully complete, zero known gaps)
 - User stories doc was updated mid-project: Epic 9 grew from 2 stories to 5
   (9.0 Effective Permission Resolution, 9.1 Role Defaults, 9.2 Individual
   Exceptions, 9.3 Permission Groups, 9.4 Temporary Role Delegation). Full
@@ -225,6 +275,46 @@ of this log before trusting old "✅" claims elsewhere; several were inaccurate)
   per-user permissions view. All SECURITY DEFINER with an internal
   self-or-super_admin guard (verified via a real authenticated-session smoke
   test, not just service-role).
+  **2026-09-07 correction**: "for the UI" above is aspirational, not actual —
+  the 2026-09-07 QA pass confirmed via SQL that all three resolution
+  functions compute perfectly correct results (9.0 Sc01–06 all PASS), but a
+  repo-wide grep found **zero** callers of any of them from any page or
+  server action. There is no screen anywhere that shows a user's effective
+  permission *and which layer decided it* (9.0 Sc07) — a Super Admin can
+  currently only reconstruct this by manually cross-referencing the Role
+  Defaults/Groups/Individual Exceptions tabs by hand, which is exactly the
+  manual work this story exists to eliminate. This is a missing UI feature,
+  not a resolution-engine bug — the engine itself is solid and ready to be
+  wired up whenever this screen gets built.
+  **2026-09-07 — Sc07 built**: added
+  `app/(dashboard)/super-admin/permissions/effective/[userId]/page.tsx`, a
+  read-only screen that calls `list_effective_permissions(p_user_id)` (the
+  function's own migration comment already named this exact screen as its
+  purpose) and renders one row per permission — effective Allow/Deny, which
+  layer decided it (Individual/Group/Role Default, color-coded pills
+  distinct from the Allow/Deny pills), and a plain-language "why" derived
+  from `source_detail` (e.g. "Denied by group: X" / "Set directly for this
+  user" / "Inherited from the Champion role default"). Reused the existing
+  table/pill conventions from the Role Defaults and Group Detail pages
+  exactly, so it looks native to the section rather than bolted on. Entry
+  point: a "View Permissions" button on the Champion detail page
+  (`champions/[id]/page.tsx`, next to Edit/status controls) — the only
+  place a Super Admin currently looks at "a specific user" in this app,
+  since no Gatekeeper detail page exists yet. Deliberately scoped to just
+  Individual/Group/Role per the AC's own wording — delegation-borrowed
+  access (9.4) is a separate concept with its own scenario coverage and
+  isn't part of this specific screen. Live-tested end-to-end against a
+  temporary test Champion with all three source layers actually present
+  (an individual override, a group deny, and several role-default
+  fallbacks) — every row's effective result, layer, and why-text matched
+  expectations exactly; the not-found case (deleted/invalid user id) also
+  correctly 404s. `npx tsc --noEmit` passes clean. All test data deleted
+  and reconfirmed clean via direct DB query afterward.
+  **2026-09-07 bug fix**: the "End Now" manual-delegation-end audit log
+  (`role_delegation.ended_manually`) wrote no `details` at all — no
+  delegator/delegate/period — unlike every other delegation audit event.
+  Fixed in `actions/permissions.ts` (`endDelegationAction`) to fetch and
+  embed those fields before logging.
 - Deactivating a Champion (manual, or cascaded via club deactivation) now also
   ends any `role_delegations` row where that user is the delegator
   (`endDelegationsForDeactivatedUser` in `actions/permissions.ts`, called from
@@ -246,7 +336,8 @@ of this log before trusting old "✅" claims elsewhere; several were inaccurate)
   a `club_id` existed in the DB until Epic 9 testing created some. Fixed by
   disambiguating to `clubs!profiles_club_id_fkey(...)` in all three files.
 
-**Epic 6 — Event & Calendar (Story 6.1)** ✅ (verified 2026-08-11)
+**Epic 6 — Event & Calendar (Story 6.1)** ✅ (verified 2026-08-11,
+live-QA-passed 2026-09-07 — no bugs found)
 - Super Admin read-only calendar at `/super-admin/events`: Month grid
   (Monday-start, hand-rolled — no calendar library) and List view, toggled
   and fully driven by URL params (`view`/`year`/`month`/`club`/`type`/`event`)
@@ -292,6 +383,166 @@ per-epic notes for why):
 - Gatekeeper login-blocking on club/account deactivation (7.3 Sc01, the
   Gatekeeper half) can't be enforced or verified — there's no Gatekeeper
   mobile app or API surface in this repo at all yet for it to apply to.
+
+### 2026-09-07 full QA pass — all 9 epics + Non-Functional Requirements
+Every acceptance-criteria scenario across all 9 Super Admin epics (~108
+scenarios) plus the Non-Functional Requirements section of the Initial
+Requirement Document was independently tested live in a real browser against
+the running app (not just "code exists" review), using a mix of direct
+testing and parallel/sequential subagents each covering one epic. Full
+scenario-by-scenario evidence lives in this session's transcript; the
+summary below is the durable record.
+
+**Final verification status, epic by epic (answers "is this epic fully done
+and verified against its own acceptance criteria" — not "is Phase 1 done"):**
+
+✅ **Fully done and verified, zero gaps** — Epic 2 (Dashboard), Epic 3
+(Profile Management), Epic 4 (Resource Management), Epic 5 (Announcement
+Management), Epic 6 (Event & Calendar), **Epic 9 (Permission Management,
+as of 2026-09-07)**. Every scenario live-tested and passing. (Epic 2 has
+two sub-scenarios that could only be code-verified, not pixel-verified
+live, because this environment doesn't have >10 clubs or any non-zero
+Gatekeeper count to trigger them — not an app defect, just a data-volume
+ceiling in this test environment. Epic 9's last gap — Story 9.0 Scenario 07,
+a screen showing a user's effective permission and which layer decided it —
+was built and live-tested on 2026-09-07; see the Epic 9 note above for
+details.)
+
+⚠️ **Functionally complete, with a known and clearly-scoped gap** — Epic 1
+(Authentication & Access Control): every scenario passes except that actual
+inbox delivery of the two password-changed confirmation emails (1.2 Sc09,
+1.3 Sc08) couldn't be independently confirmed (no inbox access in this
+session) — the send mechanism itself is correctly configured and working.
+Epic 7 (Club Management): the entire Super Admin/Champion-facing
+deactivate/reactivate cascade is fully verified, live and via direct
+database reads, including the "manually- vs. cascade-deactivated" cascade
+distinction — but 7.3 Scenario 01's *Gatekeeper* login-block half remains
+unverifiable, because no Gatekeeper mobile app or API surface exists in
+this repo yet for it to apply to (tracked separately below, not a Super
+Admin defect). Epic 8 (Champion Account Management): all account-management
+behavior (create/edit/reassign/OCC-conflict-handling/deactivate/reactivate/
+list/search/filter) is fully verified; the two Champion-notification-email
+scenarios (8.2 Sc04, 8.3 Sc06) are unimplemented — no code path exists yet
+to send them at all, blocked on integrating a transactional email provider
+(Resend/SendGrid), a genuine infrastructure dependency rather than a bug.
+
+❌ **Not started at all** — none of these 9 Super Admin epics. Every one has
+real, working, live-tested implementation. (The only genuinely not-started
+work is Champion-side UI and the Gatekeeper mobile app — see "Not started
+yet" below; that work sits outside these 9 epics entirely and is blocked on
+user stories that don't exist yet, not on anything left undone here.)
+
+**Per-story result** (PASS unless noted):
+- 1.1 Login — PASS (3/3). 1.2 Forgot Password — PASS (bug fixed, see Epic 1
+  note above; Sc09 notification now configured but delivery unverified).
+  1.3 Change Password — PASS (8/8, including a genuine reuse-prevention test
+  using two real non-common passwords back-to-back). 1.4 Session Timeout —
+  PASS (auto-logout + correct message verified twice live; "Stay logged in"
+  reset verified by code only — remote browser-automation round-trip latency
+  in this session consistently exceeded even a 30s countdown buffer before
+  the click landed, an environment artifact, not an app issue).
+- 2.1 Dashboard — PASS (bug found & fixed, see Epic 2 note above). Two
+  sub-scenarios PARTIAL/code-verified-only because they need data volumes
+  this environment doesn't have (>10 clubs for the "View All" modal; any
+  non-zero gatekeeper count for the stacked-bar hover tooltip) — not fixed,
+  not exercisable without mutating shared/real data.
+- 3.1 Profile — PASS (3/3), no bugs.
+- 4.1/4.2 Resources — PASS (bug found & fixed, see Epic 4 note above).
+- 5.1/5.2 Announcements — PASS (5/5), no bugs.
+- 6.1 Events & Calendar — PASS (6/6), no bugs.
+- 7.1–7.4 Clubs — PASS (18/18, including the full deactivate/reactivate
+  cascade and the manually-vs-cascade-deactivated distinction), no bugs.
+- 8.1–8.4 Champions — PASS (20/22). The 2 FAILs are Sc04/Sc06 (Super-Admin
+  edit/reactivation notification emails) — the same pre-existing
+  no-transactional-email-provider gap already logged above, not new.
+- 9.0–9.4 Permissions — PASS (24/24 as of 2026-09-07, 2 bugs found & fixed —
+  see Epic 9 note above). The resolution engine was proven correct directly
+  via SQL against `effective_permission()`/`list_effective_permissions()`
+  with controlled role/group/individual test data, including deny-overrides
+  across conflicting groups and live re-evaluation with no caching. 9.0
+  Sc07 (a screen showing "effective permission + which layer decided") was
+  missing when this pass first ran (3 FAILs) and was built + live-tested
+  the same day — see the Epic 9 note above for what was built.
+
+**Bugs found and fixed this pass** (all re-tested live after fixing,
+`npx tsc --noEmit` clean):
+1. `middleware.ts` — dangling query string on the authenticated-user
+   auth-page redirect (Epic 1).
+2. `components/dashboard/events-widget.tsx` + `page.tsx` — Upcoming Events
+   KPI tile didn't track its own filter (Epic 2).
+3. `actions/resources.ts` — editing a file-based resource without touching
+   the file broke it, and replacing a file with a URL leaked the old file in
+   storage (Epic 4).
+4. `actions/permissions.ts` — manual "End Now" delegation audit log had no
+   `details` (Epic 9).
+5. **`middleware.ts` — RBAC/NFR finding, the most significant one this
+   pass**: essentially every `/super-admin/*` page had no role guard (only
+   Profile did, from the earlier Epic 3 fix), and the shared
+   `app/(dashboard)/layout.tsx` never checks role — so a logged-in Champion
+   could browse directly into any Super Admin screen (Clubs, Champions,
+   Permissions, etc.) just by typing the URL, seeing the real management UI
+   (Create/Edit buttons and all). The underlying *data* was always correctly
+   scoped by RLS (a Champion only ever saw their own club/own row — this was
+   never a data leak), but it's a real, systemic gap against "RBAC must be
+   strictly enforced across all platform areas." Fixed centrally in
+   `middleware.ts`: any authenticated request to `/super-admin/*` where the
+   profile's role isn't `super_admin` (or `/champion/*` where it isn't
+   `champion`) now redirects to the user's own dashboard. One change covers
+   every current and future page under either route group. Verified live in
+   both directions; normal access unaffected.
+
+**Non-Functional Requirements**:
+- Security: password hashing PASS (bcrypt), RLS coverage PASS (all 15 public
+  tables have RLS enabled, spot-checked policies correctly scope
+  Champion/Gatekeeper reads and restrict writes), RBAC — see bug #5 above.
+  HTTPS not locally testable (dev server is HTTP-only) but the Vercel +
+  Supabase architecture enforces TLS by default in production.
+- **New outstanding gap found**: Supabase's Management API confirms
+  `pitr_enabled: false` and zero backups configured for this project —
+  almost certainly a free-tier limitation (Supabase's free tier doesn't
+  include automated daily backups; this needs a paid Pro-or-higher plan).
+  Fails the "automated daily backups, 30-day retention" NFR as of today —
+  a billing/infrastructure decision, not a code fix, same category as the
+  missing transactional email provider above.
+- Performance (<3s page load): not cleanly measurable this session — local
+  dev-mode compilation + 8+ concurrent QA browser sessions on one machine
+  both inflate load times well past what a production/single-user
+  measurement would show (~2.7s on an already-compiled route even under that
+  load, vs. an initial 11s on a cold compile). Re-measure against a
+  production build or the real Vercel deployment before trusting a number.
+- Scalability: none of the Super Admin list pages paginate (`clubs`,
+  `champions`, `resources`, `announcements` all fetch unbounded) — fine at
+  today's tiny data volumes, a real gap against "accommodate growth... "
+  once those tables grow into the hundreds/thousands of rows. Backlog item.
+- Availability/Compliance/Device Support (mobile): not independently
+  testable or not yet applicable — see full per-item notes in this session's
+  transcript; none block Phase 1 web launch on their own.
+- Device Support (web, non-Chrome): not tested live in this environment
+  (only Chrome available); code review found nothing browser-specific.
+  Recommend a manual Firefox/Safari/Edge smoke test before launch.
+
+**Environment lessons for future live-QA sessions in this repo**:
+- Live-editing a source file (e.g. temporarily shrinking session-timeout
+  constants to make a 20-minute wait testable in a live session) can trip a
+  one-off Next.js/Turbopack "unexpected response from server" dev-overlay
+  error if a request is in flight during the edit/recompile — reproducing
+  the same test cleanly afterward (no edit-in-flight) showed no such error.
+  Don't mistake this for an app bug; do revert any temporarily-changed
+  constants immediately after testing and confirm via `git diff` that the
+  file is byte-identical to before.
+- This session ran many QA subagents concurrently in the *same* shared
+  Chrome profile/browser. Cookies (and therefore the logged-in session) are
+  shared across every tab on that origin — logging in as a different user
+  (or account role) in one tab silently swaps the session out from under
+  every other tab using it. Any test that needs to switch accounts (e.g. an
+  RBAC cross-role check) must either wait until no other agent/tab is
+  relying on the shared session, or run in total isolation.
+- Remote browser-automation round-trip latency in this environment can
+  easily exceed 15-30+ seconds between an observed state (e.g. a countdown
+  timer reading "13s left") and the next tool call actually executing in the
+  browser — don't design live tests around sub-30-second windows; either
+  widen the window generously or fall back to code-review confidence for
+  that specific interaction, and say so explicitly in the findings.
 
 ### Not started yet
 - Everything on the Champion side (Gatekeeper management, Champion

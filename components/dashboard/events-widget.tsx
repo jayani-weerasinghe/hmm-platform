@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { createContext, useContext, useState, useTransition, type ReactNode } from 'react'
+import Link from 'next/link'
 import { getUpcomingEvents } from '@/actions/dashboard'
 import type { EventsData, EventsFilter } from '@/actions/dashboard'
 
@@ -22,19 +23,77 @@ const FILTER_LABELS: Record<EventsFilter, string> = {
   all_upcoming: 'All',
 }
 
-export function EventsWidget({ initialData }: { initialData: EventsData }) {
-  const [filter, setFilter] = useState<EventsFilter>('next_30_days')
+// Longer-form label for the KPI tile's caption, e.g. "next 7 days" (Sc09/Sc10:
+// the caption must reflect whichever filter is currently selected, not stay
+// hardcoded to the default).
+const FILTER_CAPTIONS: Record<EventsFilter, string> = {
+  next_7_days:  'next 7 days',
+  next_30_days: 'next 30 days',
+  all_upcoming: 'all upcoming',
+}
+
+// Element #5 (Upcoming Events) is one spec'd widget — a KPI tile in the top
+// row PLUS a mini-list lower on the page — that share a single filter and a
+// single fetched count/list. Since the KPI tile and the mini-list render in
+// two different places in the page layout, their shared state lives here in
+// a context so changing the filter from either place keeps both in sync.
+type EventsContextValue = {
+  filter: EventsFilter
+  data: EventsData
+  isPending: boolean
+  setFilter: (next: EventsFilter) => void
+}
+
+const EventsContext = createContext<EventsContextValue | null>(null)
+
+function useEventsContext() {
+  const ctx = useContext(EventsContext)
+  if (!ctx) throw new Error('Upcoming Events components must be used within UpcomingEventsProvider')
+  return ctx
+}
+
+export function UpcomingEventsProvider({
+  initialData,
+  children,
+}: {
+  initialData: EventsData
+  children: ReactNode
+}) {
+  const [filter, setFilterState] = useState<EventsFilter>('next_30_days')
   const [data, setData] = useState(initialData)
   const [isPending, startTransition] = useTransition()
 
-  const handleFilter = (next: EventsFilter) => {
+  const setFilter = (next: EventsFilter) => {
     if (next === filter) return
-    setFilter(next)
+    setFilterState(next)
     startTransition(async () => {
       const fresh = await getUpcomingEvents(next)
       setData(fresh)
     })
   }
+
+  return (
+    <EventsContext.Provider value={{ filter, data, isPending, setFilter }}>
+      {children}
+    </EventsContext.Provider>
+  )
+}
+
+// #5 KPI tile (top row) — count + caption both track the widget's own filter.
+export function UpcomingEventsKpiTile() {
+  const { data, filter } = useEventsContext()
+  return (
+    <Link href="/super-admin/events" className="flex flex-col rounded-2xl bg-white p-6 shadow-sm hover:shadow-md transition-shadow">
+      <p className="mb-3 text-xs font-bold uppercase tracking-widest text-gray-400">Upcoming Events</p>
+      <p className="text-5xl font-bold tabular-nums text-[#1B2B4A]">{data.total}</p>
+      <p className="mt-2 text-sm text-gray-400">{FILTER_CAPTIONS[filter]}</p>
+    </Link>
+  )
+}
+
+// #5 mini-list + filter controls (right column, lower on the page).
+export function EventsWidget() {
+  const { filter, data, isPending, setFilter } = useEventsContext()
 
   return (
     <div className="rounded-2xl bg-white p-6 shadow-sm">
@@ -45,7 +104,7 @@ export function EventsWidget({ initialData }: { initialData: EventsData }) {
             {(Object.keys(FILTER_LABELS) as EventsFilter[]).map(f => (
               <button
                 key={f}
-                onClick={() => handleFilter(f)}
+                onClick={() => setFilter(f)}
                 disabled={isPending}
                 className={`rounded-full px-2 py-0.5 text-[10px] font-bold transition-colors disabled:opacity-50 ${
                   filter === f

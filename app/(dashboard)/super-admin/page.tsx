@@ -5,7 +5,7 @@ import { getDashboardData } from '@/actions/dashboard'
 import { BarChartWidget } from '@/components/dashboard/bar-chart-widget'
 import { StackedBarWidget } from '@/components/dashboard/stacked-bar-widget'
 import { OnboardingWidget } from '@/components/dashboard/onboarding-widget'
-import { EventsWidget } from '@/components/dashboard/events-widget'
+import { EventsWidget, UpcomingEventsKpiTile, UpcomingEventsProvider } from '@/components/dashboard/events-widget'
 
 export const metadata = { title: 'Dashboard — HMM Super Admin' }
 
@@ -90,6 +90,7 @@ export default async function SuperAdminDashboard() {
     : 0
 
   return (
+    <UpcomingEventsProvider initialData={data.upcomingEvents}>
     <div className="space-y-5 p-8">
 
       {/* ── Row 1: the 3 spec'd top-row KPI tiles (#2, #5, #6) ── */}
@@ -104,12 +105,8 @@ export default async function SuperAdminDashboard() {
           </p>
         </div>
 
-        {/* #5 Upcoming Events — clickable, navigates to full calendar (Sc06) */}
-        <Link href="/super-admin/events" className="flex flex-col rounded-2xl bg-white p-6 shadow-sm hover:shadow-md transition-shadow">
-          <p className="mb-3 text-xs font-bold uppercase tracking-widest text-gray-400">Upcoming Events</p>
-          <p className="text-5xl font-bold tabular-nums text-[#1B2B4A]">{data.upcomingEvents.total}</p>
-          <p className="mt-2 text-sm text-gray-400">next 30 days</p>
-        </Link>
+        {/* #5 Upcoming Events — clickable, navigates to full calendar (Sc06); count/caption track the widget's own filter (Sc07/Sc09/Sc10) */}
+        <UpcomingEventsKpiTile />
 
         {/* #6 QPR Certified — "count/total (pct%)" per spec's own example format */}
         <div className="flex flex-col rounded-2xl bg-white p-6 shadow-sm">
@@ -159,10 +156,11 @@ export default async function SuperAdminDashboard() {
             </div>
           </div>
 
-          <EventsWidget initialData={data.upcomingEvents} />
+          <EventsWidget />
         </div>
       </div>
 
     </div>
+    </UpcomingEventsProvider>
   )
 }

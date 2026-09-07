@@ -317,6 +317,12 @@ export async function endDelegationAction(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  const { data: delegation } = await supabase
+    .from('role_delegations')
+    .select('delegator_id, delegate_id, starts_at, ends_at')
+    .eq('id', delegationId)
+    .maybeSingle()
+
   const { error } = await supabase
     .from('role_delegations')
     .update({ ended_early_at: new Date().toISOString(), ended_reason: 'manual' })
@@ -329,6 +335,14 @@ export async function endDelegationAction(formData: FormData) {
     action: 'role_delegation.ended_manually',
     entityType: 'role_delegation',
     entityId: delegationId,
+    details: delegation
+      ? {
+          delegator_id: delegation.delegator_id,
+          delegate_id: delegation.delegate_id,
+          starts_at: delegation.starts_at,
+          ends_at: delegation.ends_at,
+        }
+      : undefined,
   })
 
   revalidatePath('/super-admin/permissions/delegations')
