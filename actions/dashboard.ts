@@ -2,9 +2,9 @@
 
 import { createClient } from '@/lib/supabase/server'
 
-export type BarItem = { club_id: string; club_name: string; count: number }
+export type BarItem = { club_id: string; club_name: string; count: number; club_location?: string | null }
 export type StackedItem = { club_id: string; club_name: string; active: number; inactive: number }
-export type UpcomingEvent = { id: string; title: string; club_name: string; starts_at: string }
+export type UpcomingEvent = { id: string; title: string; club_name: string; starts_at: string; type: string }
 export type EventsData = { total: number; events: UpcomingEvent[] }
 export type QPRData = { certified: number; total: number; expiringSoon: number }
 export type OnboardingFilter = 'this_month' | 'last_month' | 'this_quarter'
@@ -33,7 +33,7 @@ export async function getDashboardData(): Promise<DashboardData> {
 
   const { data: clubs } = await supabase
     .from('clubs')
-    .select('id, name')
+    .select('id, name, location')
     .eq('is_active', true)
 
   const activeClubs = clubs ?? []
@@ -58,7 +58,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     supabase.from('profiles').select('club_id, is_active').eq('role', 'gatekeeper').in('club_id', clubIds),
     supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'champion').eq('is_active', true).in('club_id', clubIds),
     supabase.from('profiles').select('club_id').eq('role', 'gatekeeper').in('club_id', clubIds).gte('created_at', thisMonthStart),
-    supabase.from('events').select('id, title, starts_at, club_id').gt('starts_at', now.toISOString()).eq('is_cancelled', false).in('club_id', clubIds).order('starts_at', { ascending: true }).lte('starts_at', in30Days),
+    supabase.from('events').select('id, title, starts_at, club_id, type').gt('starts_at', now.toISOString()).eq('is_cancelled', false).in('club_id', clubIds).order('starts_at', { ascending: true }).lte('starts_at', in30Days),
     supabase.from('profiles').select('qpr_expiry_date').in('role', ['champion', 'gatekeeper']).eq('is_active', true).in('club_id', clubIds),
   ])
 
@@ -80,7 +80,7 @@ export async function getDashboardData(): Promise<DashboardData> {
 
   return {
     activeGatekeepersPerClub: activeClubs
-      .map(c => ({ club_id: c.id, club_name: c.name, count: activeGkByClub[c.id] ?? 0 }))
+      .map(c => ({ club_id: c.id, club_name: c.name, club_location: c.location, count: activeGkByClub[c.id] ?? 0 }))
       .sort((a, b) => b.count - a.count),
 
     totalActiveChampions: champCount ?? 0,
@@ -105,6 +105,7 @@ export async function getDashboardData(): Promise<DashboardData> {
         title: e.title,
         club_name: nameById[e.club_id] ?? '',
         starts_at: e.starts_at,
+        type: e.type,
       })),
     },
 
@@ -169,7 +170,7 @@ export async function getUpcomingEvents(filter: EventsFilter): Promise<EventsDat
 
   let query = supabase
     .from('events')
-    .select('id, title, starts_at, club_id')
+    .select('id, title, starts_at, club_id, type')
     .gt('starts_at', now.toISOString())
     .eq('is_cancelled', false)
     .in('club_id', clubIds)
@@ -193,6 +194,7 @@ export async function getUpcomingEvents(filter: EventsFilter): Promise<EventsDat
       title: e.title,
       club_name: nameById[e.club_id] ?? '',
       starts_at: e.starts_at,
+      type: e.type,
     })),
   }
 }
