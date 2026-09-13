@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useState } from 'react'
+import { useActionState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { loginAction } from '@/actions/auth'
@@ -15,41 +15,49 @@ export function LoginForm() {
     errorParam === 'club_inactive' ? 'Your club is currently inactive. Please contact your administrator.' :
     errorParam === 'account_inactive' ? 'Your account has been deactivated. Please contact an administrator.' :
     null
-  const [showPassword, setShowPassword] = useState(false)
+
+  const hasBanner = resetSuccess || sessionExpired || forcedLogoutMessage || state?.error
 
   return (
-    <div className="rounded-3xl bg-white p-10 shadow-md">
-      <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-[#F5A623]">
-        HMM PLATFORM
-      </p>
-      <h1 className="mb-1 text-3xl font-bold text-[#1B2B4A]">Sign in</h1>
-      <p className="mb-8 text-sm text-gray-500">For Super Admins and Champions.</p>
+    <div className="w-full font-[family-name:var(--font-inter)]">
+      <div className="flex flex-col gap-3">
+        <h1 className="text-[38px] font-extrabold leading-none tracking-[0.38px] text-[#012C51]">
+          Sign in
+        </h1>
+        <p className="text-[20px] leading-[1.56] tracking-[0.2px] text-[#67707F]">
+          For Super Admins and Champions.
+        </p>
+      </div>
 
-      {resetSuccess && (
-        <div className="mb-5 rounded-xl bg-green-50 p-3 text-sm text-green-700">
-          Password reset successfully. Please sign in with your new password.
-        </div>
-      )}
-      {sessionExpired && (
-        <div className="mb-5 rounded-xl bg-amber-50 p-3 text-sm text-amber-700">
-          Your session expired due to inactivity. Please sign in again.
-        </div>
-      )}
-      {forcedLogoutMessage && (
-        <div className="mb-5 rounded-xl bg-red-50 p-3 text-sm text-red-700">
-          {forcedLogoutMessage}
-        </div>
-      )}
-      {state?.error && (
-        <div className="mb-5 rounded-xl bg-red-50 p-3 text-sm text-red-700" role="alert">
-          {state.error}
+      {hasBanner && (
+        <div className="mt-6 flex flex-col gap-3">
+          {resetSuccess && (
+            <div className="rounded-lg bg-[#E6FFE7] px-4 py-3 text-sm text-[#16A34A]">
+              Password reset successfully. Please sign in with your new password.
+            </div>
+          )}
+          {sessionExpired && (
+            <div className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-[#D97706]">
+              Your session expired due to inactivity. Please sign in again.
+            </div>
+          )}
+          {forcedLogoutMessage && (
+            <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-[#DC2626]">
+              {forcedLogoutMessage}
+            </div>
+          )}
+          {state?.error && (
+            <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-[#DC2626]" role="alert">
+              {state.error}
+            </div>
+          )}
         </div>
       )}
 
-      <form action={formAction} className="space-y-5">
-        <div>
-          <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-gray-700">
-            Email address
+      <form action={formAction} className="mt-12 flex flex-col gap-6">
+        <div className="flex flex-col gap-2">
+          <label htmlFor="email" className="text-[16px] tracking-[0.16px] text-[#0C1421]">
+            Email
           </label>
           <input
             id="email"
@@ -58,65 +66,69 @@ export function LoginForm() {
             autoComplete="email"
             required
             placeholder="you@healingmindsmatter.org"
-            className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-[#F5A623] focus:ring-2 focus:ring-[#F5A623]/20"
+            className="h-12 w-full rounded-lg border border-[#D4D7E3] bg-[#F7FBFF] px-4 text-[16px] tracking-[0.16px] text-[#0C1421] outline-none transition placeholder:text-[#8897AD] focus:border-[#F4AC1E] focus:ring-2 focus:ring-[#F4AC1E]/20"
           />
         </div>
 
-        <div>
-          <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-gray-700">
+        <div className="flex flex-col gap-2">
+          <label htmlFor="password" className="text-[16px] tracking-[0.16px] text-[#0C1421]">
             Password
           </label>
-          <div className="relative">
-            <input
-              id="password"
-              name="password"
-              type={showPassword ? 'text' : 'password'}
-              autoComplete="current-password"
-              required
-              placeholder="••••••••••"
-              className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 pr-16 text-sm outline-none transition focus:border-[#F5A623] focus:ring-2 focus:ring-[#F5A623]/20"
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword(v => !v)}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-[#1B2B4A] hover:text-[#F5A623] transition-colors"
-            >
-              {showPassword ? 'Hide' : 'Show'}
-            </button>
-          </div>
+          <input
+            id="password"
+            name="password"
+            type="password"
+            autoComplete="current-password"
+            required
+            placeholder="At least 8 characters"
+            className="h-12 w-full rounded-lg border border-[#D4D7E3] bg-[#F7FBFF] px-4 text-[16px] tracking-[0.16px] text-[#0C1421] outline-none transition placeholder:text-[#8897AD] focus:border-[#F4AC1E] focus:ring-2 focus:ring-[#F4AC1E]/20"
+          />
         </div>
 
         <div className="flex items-center justify-between">
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-600">
-            <input
-              type="checkbox"
-              name="keep_signed_in"
-              className="h-4 w-4 rounded border-gray-300 accent-[#F5A623]"
-            />
-            Keep me signed in
+          <label className="inline-flex cursor-pointer items-center gap-[7px]">
+            <span className="relative inline-block size-[22px] shrink-0">
+              <input
+                type="checkbox"
+                name="keep_signed_in"
+                className="peer absolute inset-0 size-full cursor-pointer opacity-0"
+              />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/icons/checkbox-unchecked.svg"
+                alt=""
+                className="absolute inset-0 size-full peer-checked:opacity-0"
+              />
+              <span className="absolute inset-0 hidden items-center justify-center rounded-[3px] bg-[#F4AC1E] peer-checked:flex">
+                <svg viewBox="0 0 12 10" className="h-[9px] w-[11px]" fill="none" aria-hidden="true">
+                  <path d="M1 5L4.5 8.5L11 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </span>
+            </span>
+            <span className="text-[16px] tracking-[0.16px] text-[#67707F]">Keep me signed in</span>
           </label>
           <Link
             href="/forgot-password"
-            className="text-sm font-semibold text-[#1B2B4A] hover:text-[#F5A623] transition-colors"
+            className="text-[16px] font-bold tracking-[0.16px] text-[#265BA2] hover:underline"
           >
-            Forgot password?
+            Forgot Password?
           </Link>
         </div>
 
         <button
           type="submit"
           disabled={isPending}
-          className="w-full rounded-xl bg-[#F5A623] px-4 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#E8941A] disabled:opacity-60"
+          className="w-full rounded-lg bg-[#F4AC1E] py-4 text-[20px] font-semibold tracking-[0.2px] text-white transition hover:bg-[#e0991a] disabled:opacity-60"
         >
           {isPending ? 'Signing in…' : 'Sign in'}
         </button>
       </form>
 
-      <p className="mt-6 text-center text-xs text-gray-400">
-        Gatekeepers use the HMM mobile app.{' '}
+      <p className="mt-12 text-[16px] leading-[1.6] tracking-[0.16px] text-[#67707F]">
+        Need to change password?{' '}
         <a
           href="mailto:support@healingmindsmatter.org"
-          className="font-semibold text-[#1B2B4A] hover:underline"
+          className="font-bold text-[#265BA2] hover:underline"
         >
           Contact support
         </a>
