@@ -22,16 +22,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
     redirect(`/login?error=${reason}`)
   }
 
-  const [{ count: clubCount }, { count: championCount }] = await Promise.all([
-    supabase.from('clubs').select('*', { count: 'exact', head: true }),
-    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'champion'),
-  ])
-
   return (
-    <DashboardClientLayout
-      profile={profile}
-      pageCounts={{ clubs: clubCount ?? 0, champions: championCount ?? 0 }}
-    >
+    <DashboardClientLayout profile={profile}>
       {children}
     </DashboardClientLayout>
   )
