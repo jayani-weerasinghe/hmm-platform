@@ -1,21 +1,9 @@
 'use client'
 
-import { createContext, useContext, useState, useTransition, type ReactNode } from 'react'
-import Link from 'next/link'
+import { useState, useTransition } from 'react'
 import { getUpcomingEvents } from '@/actions/dashboard'
 import type { EventsData, EventsFilter } from '@/actions/dashboard'
-
-function DateBadge({ iso }: { iso: string }) {
-  const d = new Date(iso)
-  const day = d.toLocaleDateString('en-AU', { day: '2-digit' })
-  const month = d.toLocaleDateString('en-AU', { month: 'short' }).toUpperCase()
-  return (
-    <div className="flex w-12 flex-shrink-0 flex-col items-center justify-center rounded-xl bg-[#F0F2F5] py-2.5">
-      <span className="text-lg font-bold leading-none text-[#1B2B4A]">{day}</span>
-      <span className="mt-1 text-[10px] font-bold tracking-wide text-[#F5A623]">{month}</span>
-    </div>
-  )
-}
+import { EVENT_TYPE_STYLES } from '@/app/(dashboard)/super-admin/events/event-type'
 
 const FILTER_LABELS: Record<EventsFilter, string> = {
   next_7_days:  '7d',
@@ -23,49 +11,50 @@ const FILTER_LABELS: Record<EventsFilter, string> = {
   all_upcoming: 'All',
 }
 
-// Longer-form label for the KPI tile's caption, e.g. "next 7 days" (Sc09/Sc10:
-// the caption must reflect whichever filter is currently selected, not stay
-// hardcoded to the default).
-const FILTER_CAPTIONS: Record<EventsFilter, string> = {
-  next_7_days:  'next 7 days',
-  next_30_days: 'next 30 days',
-  all_upcoming: 'all upcoming',
+const TYPE_SOLID: Record<string, { square: string; badge: string }> = {
+  qpr_session:       { square: 'bg-blue-100',   badge: 'bg-blue-600' },
+  awareness_program: { square: 'bg-purple-100', badge: 'bg-purple-600' },
+  workshop:           { square: 'bg-green-100',  badge: 'bg-green-600' },
+  other:              { square: 'bg-gray-100',   badge: 'bg-gray-500' },
 }
 
-// Element #5 (Upcoming Events) is one spec'd widget — a KPI tile in the top
-// row PLUS a mini-list lower on the page — that share a single filter and a
-// single fetched count/list. Since the KPI tile and the mini-list render in
-// two different places in the page layout, their shared state lives here in
-// a context so changing the filter from either place keeps both in sync.
-type EventsContextValue = {
-  filter: EventsFilter
-  data: EventsData
-  isPending: boolean
-  setFilter: (next: EventsFilter) => void
+function typeSolid(type: string) {
+  return TYPE_SOLID[type] ?? TYPE_SOLID.other
 }
 
-const EventsContext = createContext<EventsContextValue | null>(null)
+function EventRow({ ev }: { ev: EventsData['events'][number] }) {
+  const d = new Date(ev.starts_at)
+  const dateLabel = d.toLocaleDateString('en-AU', { month: 'short', day: '2-digit' })
+  const time = d.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })
+  const style = EVENT_TYPE_STYLES[ev.type] ?? EVENT_TYPE_STYLES.other
+  const solid = typeSolid(ev.type)
 
-function useEventsContext() {
-  const ctx = useContext(EventsContext)
-  if (!ctx) throw new Error('Upcoming Events components must be used within UpcomingEventsProvider')
-  return ctx
+  return (
+    <div className="flex w-full items-center justify-between rounded-xl bg-[#F6F5F5] p-2">
+      <div className="flex items-center gap-2.5">
+        <div className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg ${solid.square}`}>
+          <span className={`h-2 w-2 rounded-full ${style.dot}`} />
+        </div>
+        <div className="min-w-0">
+          <p className="truncate text-xs font-bold text-[#0F172A]">{ev.title}</p>
+          <p className="truncate text-[11px] text-[#64748B]">{ev.club_name} • {dateLabel}, {time}</p>
+        </div>
+      </div>
+      <span className={`ml-2 flex-shrink-0 rounded px-2 py-0.5 text-[10px] font-bold text-white ${solid.badge}`}>
+        {style.label.replace(' Program', '').replace('QPR Certification Session', 'QPR')}
+      </span>
+    </div>
+  )
 }
 
-export function UpcomingEventsProvider({
-  initialData,
-  children,
-}: {
-  initialData: EventsData
-  children: ReactNode
-}) {
-  const [filter, setFilterState] = useState<EventsFilter>('next_30_days')
+export function EventsWidget({ initialData }: { initialData: EventsData }) {
+  const [filter, setFilter] = useState<EventsFilter>('next_30_days')
   const [data, setData] = useState(initialData)
   const [isPending, startTransition] = useTransition()
 
-  const setFilter = (next: EventsFilter) => {
+  const setAndFetch = (next: EventsFilter) => {
     if (next === filter) return
-    setFilterState(next)
+    setFilter(next)
     startTransition(async () => {
       const fresh = await getUpcomingEvents(next)
       setData(fresh)
@@ -73,81 +62,44 @@ export function UpcomingEventsProvider({
   }
 
   return (
-    <EventsContext.Provider value={{ filter, data, isPending, setFilter }}>
-      {children}
-    </EventsContext.Provider>
-  )
-}
-
-// #5 KPI tile (top row) — count + caption both track the widget's own filter.
-export function UpcomingEventsKpiTile() {
-  const { data, filter } = useEventsContext()
-  return (
-    <Link href="/super-admin/events" className="flex flex-col rounded-2xl bg-white p-6 shadow-sm hover:shadow-md transition-shadow">
-      <p className="mb-3 text-xs font-bold uppercase tracking-widest text-gray-400">Upcoming Events</p>
-      <p className="text-5xl font-bold tabular-nums text-[#1B2B4A]">{data.total}</p>
-      <p className="mt-2 text-sm text-gray-400">{FILTER_CAPTIONS[filter]}</p>
-    </Link>
-  )
-}
-
-// #5 mini-list + filter controls (right column, lower on the page).
-export function EventsWidget() {
-  const { filter, data, isPending, setFilter } = useEventsContext()
-
-  return (
-    <div className="rounded-2xl bg-white p-6 shadow-sm">
-      <div className="mb-5 flex items-center justify-between">
-        <h2 className="text-base font-bold text-[#1B2B4A]">Upcoming events</h2>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-0.5">
-            {(Object.keys(FILTER_LABELS) as EventsFilter[]).map(f => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                disabled={isPending}
-                className={`rounded-full px-2 py-0.5 text-[10px] font-bold transition-colors disabled:opacity-50 ${
-                  filter === f
-                    ? 'bg-[#1B2B4A] text-white'
-                    : 'text-gray-400 hover:text-gray-600'
-                }`}
-              >
-                {FILTER_LABELS[f]}
-              </button>
-            ))}
-          </div>
-          <a
-            href="/super-admin/events"
-            className="text-sm font-semibold text-blue-500 hover:text-blue-700"
-          >
-            Calendar
-          </a>
+    <div className="flex h-full flex-col rounded-2xl bg-white p-5">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <h2 className="font-[family-name:var(--font-jakarta)] text-base font-bold text-[#0F172A]">Upcoming Events</h2>
+          <span className="rounded-full bg-[#EFF6FF] px-2 py-0.5 text-[11px] font-bold text-[#1E4BB8]">{data.total}</span>
+        </div>
+        <div className="flex items-center gap-0.5 rounded-lg border border-[#E2E8F0] bg-[#F9F9F9] p-0.5">
+          {(Object.keys(FILTER_LABELS) as EventsFilter[]).map(f => (
+            <button
+              key={f}
+              onClick={() => setAndFetch(f)}
+              disabled={isPending}
+              className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors disabled:opacity-50 ${
+                filter === f ? 'bg-white text-[#0F172A] shadow-sm' : 'text-[#475569] hover:text-[#0F172A]'
+              }`}
+            >
+              {FILTER_LABELS[f]}
+            </button>
+          ))}
         </div>
       </div>
 
       {data.events.length === 0 ? (
-        <p className="py-4 text-sm text-gray-400">No upcoming events in this period</p>
+        <p className="flex flex-1 items-center justify-center py-6 text-center text-sm text-gray-400">No upcoming events in this period</p>
       ) : (
-        <ul className="space-y-4">
-          {data.events.map(ev => {
-            const d = new Date(ev.starts_at)
-            const time = d.toLocaleTimeString('en-AU', {
-              hour: '2-digit', minute: '2-digit', hour12: false,
-            })
-            return (
-              <li key={ev.id} className="flex items-start gap-3">
-                <DateBadge iso={ev.starts_at} />
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold leading-snug text-[#1B2B4A]">
-                    {ev.title} · {ev.club_name}
-                  </p>
-                  <p className="mt-0.5 text-xs text-gray-400">{time}</p>
-                </div>
-              </li>
-            )
-          })}
-        </ul>
+        <div className="flex flex-1 flex-col gap-2.5">
+          {data.events.map(ev => (
+            <EventRow key={ev.id} ev={ev} />
+          ))}
+        </div>
       )}
+
+      <div className="mt-3 flex items-center justify-between border-t border-[#E2E8F0] pt-3 text-[11px]">
+        <span className="text-[#64748B]">{data.total} event{data.total !== 1 ? 's' : ''} in this period</span>
+        <a href="/super-admin/events" className="flex items-center gap-1 font-bold text-[#1E4BB8] hover:underline">
+          View Full Calendar →
+        </a>
+      </div>
     </div>
   )
 }

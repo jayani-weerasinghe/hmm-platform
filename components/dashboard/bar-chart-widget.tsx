@@ -46,7 +46,7 @@ function ViewAllModal({
     >
       <div className="flex max-h-[80vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
-          <h2 className="text-base font-semibold text-[#1B2B4A]">{title} — All Clubs</h2>
+          <h2 className="text-base font-semibold text-[#0F172A]">{title} — All Clubs</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg leading-none" aria-label="Close">
             ✕
           </button>
@@ -78,93 +78,82 @@ function ViewAllModal({
   )
 }
 
-function Bar({ item, maxCount, color }: { item: BarItem; maxCount: number; color: string }) {
-  const [hover, setHover] = useState(false)
+function RankedRow({ item, rank, maxCount }: { item: BarItem; rank: number; maxCount: number }) {
   const pct = maxCount > 0 ? Math.max((item.count / maxCount) * 100, item.count > 0 ? 2 : 0) : 0
-  const displayPct = maxCount > 0 && item.count > 0 ? Math.round((item.count / maxCount) * 100) : 0
 
   return (
-    <div className="flex items-center gap-3">
-      <div className="w-32 flex-shrink-0 truncate text-sm text-gray-600" title={item.club_name}>
-        {item.club_name}
-      </div>
-      <div
-        className="relative flex-1"
-        onMouseEnter={() => setHover(true)}
-        onMouseLeave={() => setHover(false)}
-      >
-        <div className="h-5 overflow-hidden rounded-full bg-gray-100">
-          {item.count > 0 ? (
-            <div
-              className={`h-full rounded-full transition-all ${color}`}
-              style={{ width: `${pct}%` }}
-            />
-          ) : null}
+    <div className="flex w-full flex-col gap-1">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="w-4 text-[11px] font-bold text-[#64748B]">#{rank}</span>
+          <span className="text-xs font-bold text-[#0F172A]">{item.club_name}</span>
+          {item.club_location && (
+            <span className="rounded bg-[#F1F5F9] px-1.5 text-[10px] text-[#475569]">{item.club_location}</span>
+          )}
         </div>
-        {hover && (
-          <div className="pointer-events-none absolute -top-7 left-1/2 z-20 -translate-x-1/2 whitespace-nowrap rounded-lg bg-gray-900 px-2 py-1 text-xs text-white shadow">
-            {item.club_name}: {item.count}
-          </div>
-        )}
+        <div className="flex items-end whitespace-nowrap">
+          <span className="text-xs font-bold text-[#0F172A]">{item.count}</span>
+          <span className="ml-1 text-[11px] text-[#64748B]">gatekeepers</span>
+        </div>
       </div>
-      <div className="w-20 flex-shrink-0 text-right text-xs text-gray-400">
-        {item.count > 0 ? `${item.count} · ${displayPct}%` : '0'}
+      <div className="h-[14px] w-full overflow-hidden rounded-md bg-[#F1F5F9]">
+        {item.count > 0 && (
+          <div className="h-full rounded bg-[#022C51] transition-all" style={{ width: `${pct}%` }} />
+        )}
       </div>
     </div>
   )
 }
 
-export function BarChartWidget({
-  title,
-  data,
-  color = 'bg-amber-500',
-  filterSlot,
-}: {
-  title: string
-  data: BarItem[]
-  color?: string
-  filterSlot?: React.ReactNode
-}) {
+export function BarChartWidget({ data }: { data: BarItem[] }) {
   const [showAll, setShowAll] = useState(false)
   const visible = data.slice(0, MAX_VISIBLE)
   const maxCount = Math.max(...data.map(d => d.count), 1)
   const hasMore = data.length > MAX_VISIBLE
+  const average = data.length > 0 ? Math.round(data.reduce((sum, d) => sum + d.count, 0) / data.length) : 0
 
   return (
     <>
-      <div className="flex flex-col rounded-2xl bg-white p-6 shadow-sm">
-        <div className="mb-5 flex items-center justify-between gap-2">
-          <h2 className="text-base font-semibold text-[#1B2B4A]">{title}</h2>
-          {filterSlot ?? (
+      <div className="flex h-full flex-col rounded-2xl bg-white p-5">
+        <div className="mb-1 flex items-center justify-between gap-2">
+          <h2 className="font-[family-name:var(--font-jakarta)] text-base font-bold text-[#0F172A]">Active Gatekeepers by Club</h2>
+          {hasMore ? (
+            <button
+              onClick={() => setShowAll(true)}
+              className="flex items-center gap-1 text-xs font-bold text-[#1E4BB8] hover:underline"
+            >
+              View all {data.length} clubs ↗
+            </button>
+          ) : (
             <Link
               href="/super-admin/clubs"
-              className="text-sm font-semibold text-[#F5A623] hover:underline"
+              className="flex items-center gap-1 text-xs font-bold text-[#1E4BB8] hover:underline"
             >
-              View all clubs
+              View all clubs ↗
             </Link>
           )}
         </div>
+        <p className="mb-3 text-[11px] text-[#64748B]">Descending order of active, certified gatekeepers.</p>
 
         {data.length === 0 ? (
           <p className="py-10 text-center text-sm text-gray-400">No data yet</p>
         ) : (
-          <div className="space-y-3">
-            {visible.map(item => (
-              <Bar key={item.club_id} item={item} maxCount={maxCount} color={color} />
+          <div className="flex flex-col gap-3">
+            {visible.map((item, i) => (
+              <RankedRow key={item.club_id} item={item} rank={i + 1} maxCount={maxCount} />
             ))}
           </div>
         )}
 
-        {hasMore && (
-          <button
-            onClick={() => setShowAll(true)}
-            className="mt-5 self-start text-sm font-semibold text-[#F5A623] hover:underline"
-          >
-            View all {data.length} clubs →
-          </button>
+        {data.length > 0 && (
+          <div className="mt-4 border-t border-[#E2E8F0] pt-3 text-[11px] text-[#64748B]">
+            Average: <span className="font-bold text-[#0F172A]">{average} gatekeeper{average !== 1 ? 's' : ''}</span> per club
+          </div>
         )}
       </div>
-      <ViewAllModal open={showAll} onClose={() => setShowAll(false)} title={title} data={data} />
+      {hasMore && (
+        <ViewAllModal open={showAll} onClose={() => setShowAll(false)} title="Active Gatekeepers by Club" data={data} />
+      )}
     </>
   )
 }

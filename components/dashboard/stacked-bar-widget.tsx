@@ -44,7 +44,7 @@ function ViewAllModal({
     >
       <div className="flex max-h-[80vh] w-full max-w-xl flex-col overflow-hidden rounded-xl bg-white shadow-xl ring-1 ring-gray-200">
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-          <h2 className="text-base font-semibold text-gray-900">Club-wise Gatekeeper Count — All Clubs</h2>
+          <h2 className="text-base font-semibold text-gray-900">Gatekeeper Activity by Club — All Clubs</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg leading-none" aria-label="Close">
             ✕
           </button>
@@ -56,10 +56,10 @@ function ViewAllModal({
                 <th className="cursor-pointer select-none px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 hover:text-gray-800" onClick={() => toggle('name')}>
                   Club{arrow('name')}
                 </th>
-                <th className="cursor-pointer select-none px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-blue-600 hover:text-blue-800" onClick={() => toggle('active')}>
+                <th className="cursor-pointer select-none px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-[#0D8275] hover:opacity-80" onClick={() => toggle('active')}>
                   Active{arrow('active')}
                 </th>
-                <th className="cursor-pointer select-none px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-orange-500 hover:text-orange-700" onClick={() => toggle('inactive')}>
+                <th className="cursor-pointer select-none px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 hover:text-gray-800" onClick={() => toggle('inactive')}>
                   Inactive{arrow('inactive')}
                 </th>
                 <th className="cursor-pointer select-none px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 hover:text-gray-800" onClick={() => toggle('total')}>
@@ -71,8 +71,8 @@ function ViewAllModal({
               {sorted.map(row => (
                 <tr key={row.club_id} className="hover:bg-gray-50">
                   <td className="px-6 py-3 text-sm text-gray-900">{row.club_name}</td>
-                  <td className="px-4 py-3 text-right text-sm font-medium text-blue-600">{row.active}</td>
-                  <td className="px-4 py-3 text-right text-sm font-medium text-orange-500">{row.inactive}</td>
+                  <td className="px-4 py-3 text-right text-sm font-medium text-[#0D8275]">{row.active}</td>
+                  <td className="px-4 py-3 text-right text-sm font-medium text-gray-500">{row.inactive}</td>
                   <td className="px-6 py-3 text-right text-sm font-medium text-gray-700">{row.active + row.inactive}</td>
                 </tr>
               ))}
@@ -84,56 +84,28 @@ function ViewAllModal({
   )
 }
 
-function StackedBar({ item, maxTotal }: { item: StackedItem; maxTotal: number }) {
-  const [tooltip, setTooltip] = useState<'active' | 'inactive' | null>(null)
+function ActivityCard({ item }: { item: StackedItem }) {
   const total = item.active + item.inactive
-  const barWidthPct = maxTotal > 0 ? Math.max((total / maxTotal) * 100, total > 0 ? 2 : 0) : 0
-  const activePct = total > 0 ? (item.active / total) * 100 : 0
+  const activePct = total > 0 ? Math.round((item.active / total) * 100) : 0
+  const activeBarPct = total > 0 ? (item.active / total) * 100 : 0
 
   return (
-    <div className="flex items-center gap-3">
-      <div className="w-32 flex-shrink-0 truncate text-right text-xs text-gray-500" title={item.club_name}>
-        {item.club_name}
+    <div className="flex flex-col gap-1.5 rounded-xl bg-[#F9F9F9] p-3">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-bold text-[#0F172A]">{item.club_name}</span>
+        <span className="text-[11px] font-bold text-[#0D8275]">{activePct}% Active</span>
       </div>
-      <div className="relative flex-1">
-        <div className="h-6 overflow-hidden rounded bg-gray-100">
-          {total === 0 ? (
-            <div className="flex h-full items-center px-2">
-              <span className="text-xs text-gray-400">0</span>
-            </div>
-          ) : (
-            <div className="flex h-full" style={{ width: `${barWidthPct}%` }}>
-              {item.active > 0 && (
-                <div
-                  className="relative flex h-full items-center bg-blue-500"
-                  style={{ width: `${activePct}%` }}
-                  onMouseEnter={() => setTooltip('active')}
-                  onMouseLeave={() => setTooltip(null)}
-                >
-                  {activePct > 15 && (
-                    <span className="px-1 text-xs font-medium text-white">{item.active}</span>
-                  )}
-                </div>
-              )}
-              {item.inactive > 0 && (
-                <div
-                  className="relative flex h-full flex-1 items-center bg-orange-400"
-                  onMouseEnter={() => setTooltip('inactive')}
-                  onMouseLeave={() => setTooltip(null)}
-                >
-                  {(100 - activePct) > 15 && (
-                    <span className="px-1 text-xs font-medium text-white">{item.inactive}</span>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-        {tooltip && (
-          <div className="pointer-events-none absolute -top-7 left-1/2 z-20 -translate-x-1/2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white shadow">
-            {item.club_name} — Active: {item.active}, Inactive: {item.inactive}
-          </div>
+      <div className="flex h-[10px] w-full overflow-hidden rounded-md bg-[#E2E8F0]">
+        {total > 0 && (
+          <>
+            <div className="h-full bg-[#F4AC1E]" style={{ width: `${activeBarPct}%` }} />
+            <div className="h-full flex-1 bg-[#CBD5E1]" />
+          </>
         )}
+      </div>
+      <div className="flex items-center justify-between text-[11px]">
+        <span className="font-semibold text-[#F4AC1E]">{item.active} Active</span>
+        <span className="text-[#64748B]">{item.inactive} Inactive ({total} Total)</span>
       </div>
     </div>
   )
@@ -142,38 +114,40 @@ function StackedBar({ item, maxTotal }: { item: StackedItem; maxTotal: number })
 export function StackedBarWidget({ data }: { data: StackedItem[] }) {
   const [showAll, setShowAll] = useState(false)
   const visible = data.slice(0, MAX_VISIBLE)
-  const maxTotal = Math.max(...data.map(d => d.active + d.inactive), 1)
   const hasMore = data.length > MAX_VISIBLE
 
   return (
     <>
-      <div className="flex flex-col rounded-xl bg-white p-5 ring-1 ring-gray-200">
+      <div className="flex flex-col rounded-2xl bg-white p-5">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-gray-900">Club-wise Gatekeeper Count</h2>
-          <div className="flex items-center gap-3 text-xs text-gray-500">
-            <span className="flex items-center gap-1">
-              <span className="inline-block h-2.5 w-2.5 rounded-sm bg-blue-500" />
+          <div>
+            <h2 className="font-[family-name:var(--font-jakarta)] text-base font-bold text-[#0F172A]">Gatekeeper Activity by Club</h2>
+            <p className="mt-0.5 text-[11px] text-[#64748B]">Ratio of active vs paused/inactive personnel by facility.</p>
+          </div>
+          <div className="flex items-center gap-3 rounded-lg border border-[#E2E8F0] bg-[#F6F5F5] px-3 py-1.5 text-[11px]">
+            <span className="flex items-center gap-1.5 font-bold text-[#0F172A]">
+              <span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#F4AC1E]" />
               Active
             </span>
-            <span className="flex items-center gap-1">
-              <span className="inline-block h-2.5 w-2.5 rounded-sm bg-orange-400" />
-              Inactive
+            <span className="flex items-center gap-1.5 font-medium text-[#64748B]">
+              <span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#CBD5E1]" />
+              Inactive / Paused
             </span>
           </div>
         </div>
         {data.length === 0 ? (
           <p className="py-10 text-center text-sm text-gray-400">No data yet</p>
         ) : (
-          <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-3.5">
             {visible.map(item => (
-              <StackedBar key={item.club_id} item={item} maxTotal={maxTotal} />
+              <ActivityCard key={item.club_id} item={item} />
             ))}
           </div>
         )}
         {hasMore && (
           <button
             onClick={() => setShowAll(true)}
-            className="mt-4 self-start text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline"
+            className="mt-4 self-start text-xs font-bold text-[#1E4BB8] hover:underline"
           >
             View All ({data.length} clubs) →
           </button>
