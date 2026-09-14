@@ -20,17 +20,17 @@ export function LoginForm() {
 
   return (
     <div className="w-full font-[family-name:var(--font-inter)]">
-      <div className="flex flex-col gap-3">
-        <h1 className="text-[38px] font-extrabold leading-none tracking-[0.38px] text-[#012C51]">
+      <div className="flex flex-col gap-2 sm:gap-3">
+        <h1 className="text-[28px] font-extrabold leading-none tracking-[0.28px] text-[#012C51] sm:text-[32px] sm:tracking-[0.32px] lg:text-[38px] lg:tracking-[0.38px]">
           Sign in
         </h1>
-        <p className="text-[20px] leading-[1.56] tracking-[0.2px] text-[#67707F]">
+        <p className="text-[15px] leading-[1.4] tracking-[0.15px] text-[#67707F] sm:text-[17px] sm:tracking-[0.17px] lg:text-[20px] lg:leading-[1.56] lg:tracking-[0.2px]">
           For Super Admins and Champions.
         </p>
       </div>
 
       {hasBanner && (
-        <div className="mt-6 flex flex-col gap-3">
+        <div className="mt-4 flex flex-col gap-3 sm:mt-6">
           {resetSuccess && (
             <div className="rounded-lg bg-[#E6FFE7] px-4 py-3 text-sm text-[#16A34A]">
               Password reset successfully. Please sign in with your new password.
@@ -54,7 +54,7 @@ export function LoginForm() {
         </div>
       )}
 
-      <form action={formAction} className="mt-12 flex flex-col gap-6">
+      <form action={formAction} className="mt-6 flex flex-col gap-4 sm:mt-8 sm:gap-5 lg:mt-12 lg:gap-6">
         <div className="flex flex-col gap-2">
           <label htmlFor="email" className="text-[16px] tracking-[0.16px] text-[#0C1421]">
             Email
@@ -118,13 +118,13 @@ export function LoginForm() {
         <button
           type="submit"
           disabled={isPending}
-          className="w-full rounded-lg bg-[#F4AC1E] py-4 text-[20px] font-semibold tracking-[0.2px] text-white transition hover:bg-[#e0991a] disabled:opacity-60"
+          className="w-full rounded-lg bg-[#F4AC1E] py-3 text-[17px] font-semibold tracking-[0.17px] text-white transition hover:bg-[#e0991a] disabled:opacity-60 sm:py-3.5 sm:text-[18px] lg:py-4 lg:text-[20px] lg:tracking-[0.2px]"
         >
           {isPending ? 'Signing in…' : 'Sign in'}
         </button>
       </form>
 
-      <p className="mt-12 text-[16px] leading-[1.6] tracking-[0.16px] text-[#67707F]">
+      <p className="mt-6 text-[14px] leading-[1.5] tracking-[0.14px] text-[#67707F] sm:mt-8 sm:text-[15px] lg:mt-12 lg:text-[16px] lg:leading-[1.6] lg:tracking-[0.16px]">
         Need to change password?{' '}
         <a
           href="mailto:support@healingmindsmatter.org"
