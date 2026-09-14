@@ -26,6 +26,42 @@ password reuse rules).
 - Every new table needs a Row Level Security policy before it ships.
 - Run and pass relevant tests before marking a story done.
 
+## ⚠️ Email delivery is in TEST MODE — do not onboard real Champions/Gatekeepers yet
+
+Supabase Auth emails (Champion/Gatekeeper invites, password reset, etc.) go
+through Resend SMTP (set up 2026-09-14), but the sender is still
+`onboarding@resend.dev` — Resend's own pre-verified test domain, not a
+domain this project owns.
+
+**What this means in practice:**
+- Invites sent to any email address other than `jayani@ensiz.com` (the
+  Resend account owner's address) will silently fail or bounce — Resend
+  still accepts the send and Supabase's `/invite` call still returns `200`,
+  so **the app shows success with no error even though the real person
+  never receives anything.**
+- **Do not use "Add Champion" (or any other invite flow) with a real
+  Champion's or Gatekeeper's actual email address** until the domain swap
+  below is done — it will look like onboarding worked when it didn't.
+- Only test with `jayani@ensiz.com` in the meantime.
+
+### Before onboarding real Champions — domain swap checklist
+1. Get DNS access to `healingmindsmatter.org` (or pick a different, dedicated
+   sending domain) and verify it in Resend: resend.com/domains → Add Domain
+   → add the SPF/DKIM records Resend gives you → wait for "Verified".
+2. Update the Supabase SMTP sender via `PATCH /v1/projects/{ref}/config/auth`
+   with `smtp_admin_email: noreply@<realdomain>`. **Must resend every other
+   `smtp_*` field (host/port/user/pass/sender_name) in the same request** —
+   this endpoint replaces the whole SMTP block rather than merging a partial
+   update; see the `reference-supabase` memory for the exact gotcha.
+3. Send one real test invite to a non-`ensiz.com` address you control and
+   confirm it actually lands (check spam too) before trusting it for real
+   Champions/Gatekeepers.
+4. Once confirmed, delete this warning section and update the Epic 1
+   progress log entry below to reflect production email as live.
+
+Full detail on how SMTP was configured and why it's currently limited this
+way is in the Epic 1 progress log entry dated 2026-09-14, below.
+
 ## Progress Log
 
 ### Sprint 1 — COMPLETE (all ACs verified 2026-08-03, re-audited against live code
@@ -69,6 +105,40 @@ live-QA-passed 2026-09-07)
   switched off) — actual inbox delivery not independently re-verified (no
   inbox access in this session), but the feature is now correctly configured
   end-to-end for both reset and change flows.
+  **2026-09-14 — transactional email provider now configured (test mode)**:
+  the root gap (no SMTP provider at all, so Supabase fell back to its own
+  mailer with a very low default rate limit — 2 emails/hour — which was
+  actively blocking Champion/Gatekeeper invite testing) is resolved. Custom
+  SMTP is wired up via Resend (`smtp.resend.com:465`, configured through the
+  Supabase Management API's `/config/auth` endpoint — dashboard equivalent:
+  Authentication → Settings → SMTP Settings). The email send rate limit
+  (Authentication → Rate Limits → "Rate limit for sending emails") was raised
+  from the default 2/hour to 40/hour. The Resend API key lives only in
+  Supabase's project auth config (`smtp_pass`, encrypted at rest) — never
+  committed to this repo or added to `.env.local`.
+  **Known limitation — sender domain not yet verified for production**: the
+  intended production sender `noreply@healingmindsmatter.org` could not be
+  verified in Resend (it's a company domain and DNS access wasn't available
+  in this session to add the SPF/DKIM records Resend requires). As a
+  workaround, the SMTP sender is currently set to Resend's own pre-verified
+  test address, `onboarding@resend.dev`. **This only delivers to the email
+  address on the Resend account itself** (`jayani@ensiz.com`) — sends to any
+  other recipient will silently fail or bounce. This is expected Resend
+  behavior for an unverified custom domain, not an app bug — don't mistake a
+  failed send to an arbitrary Champion/Gatekeeper email for a regression;
+  it's this same limitation. Verified live end-to-end on 2026-09-14: a real
+  Create Champion invite to `jayani@ensiz.com` returned `200` from Supabase's
+  `/invite` endpoint (previously `500`, "domain is not verified") and the
+  email was confirmed received (landed in spam — expected for a shared,
+  unverified-domain sender with no sending reputation; verified-domain
+  delivery in production should land in the inbox normally).
+  **Before this can support real Champion/Gatekeeper invites to arbitrary
+  emails**, one of two things needs to happen: (a) get DNS access to
+  `healingmindsmatter.org` from IT to add Resend's verification records, or
+  (b) verify a different, dedicated domain for this project's sending. The
+  `healingmindsmatter.org` domain entry in Resend was left as-is
+  (unverified/pending) — no action taken on it either way, per an explicit
+  decision with the user.
 - **2026-09-07 fix**: `middleware.ts`'s authenticated-user redirect (hit
   `/login` or `/forgot-password` while already signed in) was cloning the
   *full* incoming URL and only overwriting `.pathname`, so any dangling query
@@ -187,9 +257,13 @@ trigger both re-proven live end-to-end; no new bugs found)
   row — closes a latent privilege-escalation gap in the "champion/gatekeeper
   update own" RLS policies (they had no `WITH CHECK` at all) before any
   Champion/Gatekeeper self-service edit UI gets built.
-- Outstanding (infrastructure): email notifications to Champions on
-  Super-Admin-initiated edits (8.2 Sc04) and on reactivation (8.3 Sc06)
-  require a transactional email integration (Resend/SendGrid) not yet set up.
+- Outstanding: email notifications to Champions on Super-Admin-initiated
+  edits (8.2 Sc04) and on reactivation (8.3 Sc06) are still not sent — no
+  code path exists yet to send them at all. **2026-09-14**: this is no longer
+  blocked on "no transactional email provider" (Resend/SMTP is now
+  configured, see the Epic 1 note) — it's now purely a missing-code gap, and
+  in test mode is further limited by the resend.dev sender only delivering
+  to the Resend account's own address (see Epic 1 note for the full caveat).
 
 **Epic 4 — Resource Management (Stories 4.1–4.2)** ✅ (verified 2026-08-10,
 live-QA-passed 2026-09-07 — see fix below)
@@ -380,6 +454,11 @@ per-epic notes for why):
   Sc09, 1.3 Sc08), and Champion notification emails on Super-Admin-initiated
   edits/reactivation (8.2 Sc04, 8.3 Sc06). All affected UI copy has been
   corrected to not claim an email was sent when none was.
+  **2026-09-14 update**: the "not configured anywhere" half of this is now
+  resolved — see the Epic 1 2026-09-14 note above for what changed (Resend
+  SMTP live, in test mode pending a verified production domain). 8.2
+  Sc04/8.3 Sc06 remain blocked, but now purely on missing code to send those
+  specific notifications, not on missing infrastructure.
 - Gatekeeper login-blocking on club/account deactivation (7.3 Sc01, the
   Gatekeeper half) can't be enforced or verified — there's no Gatekeeper
   mobile app or API surface in this repo at all yet for it to apply to.
@@ -423,8 +502,10 @@ Admin defect). Epic 8 (Champion Account Management): all account-management
 behavior (create/edit/reassign/OCC-conflict-handling/deactivate/reactivate/
 list/search/filter) is fully verified; the two Champion-notification-email
 scenarios (8.2 Sc04, 8.3 Sc06) are unimplemented — no code path exists yet
-to send them at all, blocked on integrating a transactional email provider
-(Resend/SendGrid), a genuine infrastructure dependency rather than a bug.
+to send them at all. (**2026-09-14**: was blocked on integrating a
+transactional email provider — now resolved, Resend SMTP is live in test
+mode, see the Epic 1 2026-09-14 note. Remaining blocker is purely missing
+code, not infrastructure.)
 
 ❌ **Not started at all** — none of these 9 Super Admin epics. Every one has
 real, working, live-tested implementation. (The only genuinely not-started

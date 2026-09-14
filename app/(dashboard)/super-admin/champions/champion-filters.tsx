@@ -29,33 +29,54 @@ export function ChampionFilters({
   }, [router, pathname, q, clubFilter, status])
 
   return (
-    <div className="flex flex-wrap gap-3">
-      <input
-        type="search"
-        placeholder="Search by name…"
-        defaultValue={q}
-        onChange={e => update('q', e.target.value)}
-        className="rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-700 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#F5A623]/40"
-      />
-      <select
-        defaultValue={clubFilter ?? ''}
-        onChange={e => update('club', e.target.value)}
-        className="rounded-lg border border-gray-200 bg-white pl-4 pr-9 py-2.5 text-sm text-gray-700 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#F5A623]/40"
-      >
-        <option value="">All clubs</option>
-        {clubs.map(c => (
-          <option key={c.id} value={c.id}>{c.name}</option>
-        ))}
-      </select>
-      <select
-        defaultValue={status ?? ''}
-        onChange={e => update('status', e.target.value)}
-        className="rounded-lg border border-gray-200 bg-white pl-4 pr-9 py-2.5 text-sm text-gray-700 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#F5A623]/40"
-      >
-        <option value="">All statuses</option>
-        <option value="active">Active</option>
-        <option value="inactive">Inactive</option>
-      </select>
+    <div className="flex items-center justify-between gap-3 rounded-xl bg-white px-6 py-3 font-[family-name:var(--font-inter)]">
+      <div className="relative w-full max-w-[516px]">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/icons/search-filter.svg"
+          alt=""
+          className="pointer-events-none absolute left-3 top-1/2 h-[15px] w-[15px] -translate-y-1/2"
+        />
+        <input
+          type="search"
+          placeholder="Search champions by name or email…"
+          defaultValue={q}
+          onChange={e => update('q', e.target.value)}
+          className="w-full rounded-lg border border-transparent bg-[#F9F9F9] py-2 pl-9 pr-4 text-[13px] text-[#0F172A] placeholder:text-[#64748B] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#F4AC1E]/40"
+        />
+      </div>
+
+      <div className="flex flex-shrink-0 items-center gap-2">
+        <select
+          defaultValue={clubFilter ?? ''}
+          onChange={e => update('club', e.target.value)}
+          className="rounded-lg border border-transparent bg-[#F9F9F9] py-2 pl-4 pr-8 text-[13px] text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#F4AC1E]/40"
+        >
+          <option value="">All Clubs</option>
+          {clubs.map(c => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
+        </select>
+        <select
+          defaultValue={status ?? ''}
+          onChange={e => update('status', e.target.value)}
+          className="rounded-lg border border-transparent bg-[#F9F9F9] py-2 pl-4 pr-8 text-[13px] text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#F4AC1E]/40"
+        >
+          <option value="">All Statuses</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
+        <button
+          type="button"
+          onClick={() => router.refresh()}
+          aria-label="Refresh champion list"
+          title="Refresh"
+          className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg text-[#64748B] transition-colors hover:bg-gray-100"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/icons/refresh.svg" alt="" width={13.333} height={15.375} />
+        </button>
+      </div>
     </div>
   )
 }

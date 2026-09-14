@@ -1,8 +1,8 @@
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { ChampionEditForm } from './champion-edit-form'
+import { EditChampionModal } from './edit-champion-modal'
 
-export default async function EditChampionPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function InterceptedEditChampionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = await createClient()
 
@@ -22,9 +22,5 @@ export default async function EditChampionPage({ params }: { params: Promise<{ i
 
   if (!champion) notFound()
 
-  return (
-    <div className="flex justify-center p-8">
-      <ChampionEditForm champion={champion} clubs={clubs ?? []} />
-    </div>
-  )
+  return <EditChampionModal champion={champion} clubs={clubs ?? []} />
 }
