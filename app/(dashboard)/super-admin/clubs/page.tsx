@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { reactivateClubAction } from '@/actions/clubs'
 import { ClubFilters } from './club-filters'
+import { ExportClubsButton, type ExportRow } from './export-clubs-button'
 
 export const metadata = { title: 'Clubs — HMM Super Admin' }
 
@@ -151,21 +152,59 @@ export default async function ClubsPage({
   startPage = Math.max(1, endPage - windowSize + 1)
   const pageNumbers = Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i)
 
+  // Export covers the rows currently displayed on this page (client-side CSV,
+  // no extra query) — same computed values the table itself renders.
+  const exportRows: ExportRow[] = clubList.map(club => {
+    const champions = championsByClub[club.id] ?? []
+    const qpr = qprByClub[club.id]
+    const pct = qpr && qpr.total > 0 ? Math.round((qpr.certified / qpr.total) * 100) : null
+    return {
+      name: club.name,
+      club_code: club.club_code,
+      location: club.location,
+      is_active: club.is_active,
+      gatekeepers: gatekeeperCountByClub[club.id] ?? 0,
+      champions: champions.map(c => c.full_name).join('; '),
+      qpr_pct: pct,
+    }
+  })
+
   return (
-    <div className="p-8 font-[family-name:var(--font-inter)]">
-      <div className="mb-6 flex items-center justify-between">
-        <div />
-        <Link
-          href="/super-admin/clubs/new"
-          className="rounded-lg bg-[#F5A623] px-4 py-2 text-sm font-semibold text-white hover:bg-[#D97706] transition-colors"
-        >
-          Create Club
-        </Link>
+    <div className="flex flex-col gap-4 p-8 font-[family-name:var(--font-inter)]">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-[28px] font-bold tracking-[-0.7px] text-[#0F172A]">Club Management</h1>
+          <p className="mt-1 text-sm text-[#475569]">
+            Manage regional clubs, champion assignments, and community health.
+          </p>
+        </div>
+        <div className="flex flex-shrink-0 items-center gap-2">
+          <ExportClubsButton rows={exportRows} />
+          <Link
+            href="/super-admin/clubs/new"
+            className="flex items-center gap-2 rounded-lg bg-[#F4AC1E] px-4 py-2 text-[12px] font-semibold tracking-[0.24px] text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F]"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/icons/plus-small.svg" alt="" width={10.5} height={10.5} />
+            Create New Club
+          </Link>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between gap-4 rounded-xl border border-[#E2E8F0]/60 bg-[#EFF4FF] px-4 py-3">
+        <div className="flex items-center gap-2.5">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/icons/info-banner.svg" alt="" width={16.667} height={16.667} className="flex-shrink-0" />
+          <p className="text-[13px] leading-[18px] text-[#475569]">
+            Deactivating a club temporarily pauses portal access for its assigned members until reactivated.
+            Historical records remain preserved.
+          </p>
+        </div>
       </div>
 
       <ClubFilters q={q} status={status} />
 
-      <div className="mt-4 overflow-hidden rounded-[12px] border border-[#E2E8F0] bg-white">
+      <div className="overflow-hidden rounded-[12px] border border-[#E2E8F0] bg-white">
         {clubList.length === 0 ? (
           <div className="p-12 text-center text-sm text-[#64748B]">
             {q || status ? 'No clubs match your filters.' : 'No clubs yet. Create one to get started.'}
