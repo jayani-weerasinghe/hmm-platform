@@ -5,7 +5,7 @@ export function AuthIllustrationPanel() {
       <img
         src="/images/login-illustration.png"
         alt=""
-        className="h-full w-full object-cover"
+        className="h-full w-full object-cover object-top"
       />
     </div>
   )

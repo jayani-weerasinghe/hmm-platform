@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useTransition } from 'react'
+import { useState, useCallback, useEffect, useRef, useTransition } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
@@ -125,27 +125,109 @@ const CHAMPION_NAV: NavCfg[] = [
   { href: '/champion', label: 'Dashboard', Icon: IconDashboard, exact: true },
 ]
 
-function SideNavItem({ href, label, Icon, exact }: NavCfg) {
+function SideNavItem({ href, label, Icon, exact, collapsed }: NavCfg & { collapsed: boolean }) {
   const pathname = usePathname()
   const active = exact ? pathname === href : pathname.startsWith(href)
 
   return (
     <Link
       href={href}
+      title={collapsed ? label : undefined}
       className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-base font-bold tracking-[0.04px] transition-all ${
+        collapsed ? 'justify-center' : ''
+      } ${
         active
           ? 'bg-[rgba(245,206,129,0.26)] text-[#022C51]'
           : 'font-medium text-[#64748B] hover:bg-gray-50 hover:text-[#0F172A]'
       }`}
     >
       <Icon active={active} />
-      {label}
+      {!collapsed && label}
     </Link>
   )
 }
 
 function getInitials(name: string): string {
   return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+}
+
+function ProfileMenu({ fullName, roleLabel, initials }: { fullName: string; roleLabel: string; initials: string }) {
+  const [open, setOpen] = useState(false)
+  const [isPending, startTransition] = useTransition()
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handlePointerDown = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [open])
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className="flex items-center gap-2.5 rounded-lg group"
+      >
+        <div className="text-right">
+          <div className="text-[13px] font-bold text-[#0F172A] group-hover:text-[#F5A623] transition-colors">{fullName}</div>
+          <div className="mt-0.5 flex justify-end">
+            <span className="rounded-full bg-[#F4AC1E] px-1.5 py-[1px] text-[8px] font-extrabold uppercase tracking-wide text-[#022C51]">
+              {roleLabel}
+            </span>
+          </div>
+        </div>
+        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#012C51] text-xs font-bold text-white shadow-[0_0_0_2px_#DBEAFE] group-hover:bg-[#F5A623] transition-colors">
+          {initials}
+        </div>
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          className="absolute right-0 top-[calc(100%+8px)] z-50 w-48 overflow-hidden rounded-lg border border-[#E2E8F0] bg-white py-1.5 shadow-lg"
+        >
+          <Link
+            href="/super-admin/profile"
+            role="menuitem"
+            onClick={() => setOpen(false)}
+            className="flex items-center px-4 py-2 text-sm font-medium text-[#0F172A] hover:bg-gray-50"
+          >
+            My Profile
+          </Link>
+          <Link
+            href="/settings/change-password"
+            role="menuitem"
+            onClick={() => setOpen(false)}
+            className="flex items-center px-4 py-2 text-sm font-medium text-[#0F172A] hover:bg-gray-50"
+          >
+            Change Password
+          </Link>
+          <button
+            type="button"
+            role="menuitem"
+            disabled={isPending}
+            onClick={() => startTransition(() => logoutAction())}
+            className="flex w-full items-center px-4 py-2 text-left text-sm font-medium text-[#0F172A] hover:bg-gray-50 disabled:opacity-50"
+          >
+            {isPending ? 'Logging out…' : 'Logout'}
+          </button>
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ── Main component ─────────────────────────────────────────────────────────────
@@ -158,8 +240,8 @@ export function DashboardClientLayout({
   profile: Profile
 }) {
   const [showWarning, setShowWarning] = useState(false)
-  const [isPending, startTransition]  = useTransition()
-  const pathname = usePathname()
+  const [, startTransition]  = useTransition()
+  const [collapsed, setCollapsed] = useState(false)
 
   // Story 1.4 Sc04: timeout must redirect to /login?error=session_expired
   const handleTimeout = useCallback(() => {
@@ -185,13 +267,25 @@ export function DashboardClientLayout({
   const initials  = getInitials(profile.full_name)
 
   return (
-    <div className="flex flex-1 overflow-hidden">
+    <div className="flex h-screen overflow-hidden">
       {/* ── Sidebar ── */}
-      <aside className="flex w-64 flex-shrink-0 flex-col border-r border-[#E2E8F0] bg-white font-[family-name:var(--font-inter)]">
+      <aside
+        className={`flex flex-shrink-0 flex-col border-r border-[#E2E8F0] bg-white font-[family-name:var(--font-inter)] transition-[width] duration-200 ${
+          collapsed ? 'w-20' : 'w-64'
+        }`}
+      >
         {/* Logo block */}
-        <div className="flex items-center justify-between border-b border-[#E2E8F0] px-4 py-4">
-          <Image src="/logo.png" alt="Healing Minds Matter" width={140} height={48} className="h-12 w-auto rounded-xl object-contain" priority />
-          <button className="ml-2 flex-shrink-0 text-gray-400 hover:text-gray-600 transition-colors">
+        <div className={`flex items-center border-b border-[#E2E8F0] px-4 py-4 ${collapsed ? 'justify-center' : 'justify-between'}`}>
+          {!collapsed && (
+            <Image src="/logo.png" alt="Healing Minds Matter" width={140} height={48} className="h-12 w-auto rounded-xl object-contain" priority />
+          )}
+          <button
+            type="button"
+            onClick={() => setCollapsed(c => !c)}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-expanded={!collapsed}
+            className="ml-2 flex-shrink-0 text-gray-400 hover:text-gray-600 transition-colors"
+          >
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
               <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
             </svg>
@@ -199,56 +293,31 @@ export function DashboardClientLayout({
         </div>
 
         {/* Role/status chip */}
-        <div className="p-4 pb-0">
-          <div className="flex items-center justify-between gap-2 rounded-lg border border-[#DBEAFE] bg-gradient-to-r from-[rgba(239,246,255,0.8)] to-[rgba(255,251,235,0.5)] px-3.5 py-2.5">
-            <div className="flex items-center gap-2">
-              <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg bg-[#022C51]">
-                <svg width="10" height="12" viewBox="0 0 10 12" fill="none">
-                  <path d="M5 0 9.5 1.8v3.6c0 2.9-1.9 5.4-4.5 6.1C2.4 10.8.5 8.3.5 5.4V1.8L5 0Z" fill="white"/>
-                </svg>
+        {!collapsed && (
+          <div className="p-4 pb-0">
+            <div className="flex items-center justify-between gap-2 rounded-lg border border-[#DBEAFE] bg-gradient-to-r from-[rgba(239,246,255,0.8)] to-[rgba(255,251,235,0.5)] px-3.5 py-2.5">
+              <div className="flex items-center gap-2">
+                <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg bg-[#022C51]">
+                  <svg width="10" height="12" viewBox="0 0 10 12" fill="none">
+                    <path d="M5 0 9.5 1.8v3.6c0 2.9-1.9 5.4-4.5 6.1C2.4 10.8.5 8.3.5 5.4V1.8L5 0Z" fill="white"/>
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-[11px] font-bold tracking-[0.025em] text-[#022C51]">{roleLabel.toUpperCase()}</p>
+                  <p className="text-[10px] text-[#64748B]">Command Matrix</p>
+                </div>
               </div>
-              <div>
-                <p className="text-[11px] font-bold tracking-[0.025em] text-[#022C51]">{roleLabel.toUpperCase()}</p>
-                <p className="text-[10px] text-[#64748B]">Command Matrix</p>
-              </div>
+              <span className="flex-shrink-0 rounded-full bg-[rgba(13,130,117,0.1)] px-1.5 py-0.5 text-[10px] font-bold text-[#0D8275]">Active</span>
             </div>
-            <span className="flex-shrink-0 rounded-full bg-[rgba(13,130,117,0.1)] px-1.5 py-0.5 text-[10px] font-bold text-[#0D8275]">Active</span>
           </div>
-        </div>
+        )}
 
         {/* Nav items */}
         <nav className="flex-1 space-y-1 p-4">
           {navItems.map(item => (
-            <SideNavItem key={item.href} {...item} />
+            <SideNavItem key={item.href} {...item} collapsed={collapsed} />
           ))}
         </nav>
-
-        {/* Bottom: profile + change password + logout */}
-        <div className="border-t border-[#E2E8F0] p-4 space-y-1">
-          <Link
-            href="/super-admin/profile"
-            className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
-              pathname.startsWith('/super-admin/profile')
-                ? 'bg-[rgba(245,206,129,0.26)] font-bold text-[#022C51]'
-                : 'text-[#64748B] hover:bg-gray-50 hover:text-[#0F172A]'
-            }`}
-          >
-            My Profile
-          </Link>
-          <Link
-            href="/settings/change-password"
-            className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-[#64748B] hover:bg-gray-50 hover:text-[#0F172A] transition-all"
-          >
-            Change password
-          </Link>
-          <button
-            onClick={() => startTransition(() => logoutAction())}
-            disabled={isPending}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-[#64748B] hover:bg-gray-50 hover:text-[#0F172A] transition-all disabled:opacity-50"
-          >
-            {isPending ? 'Logging out…' : 'Log out'}
-          </button>
-        </div>
       </aside>
 
       {/* ── Main area ── */}
@@ -284,19 +353,7 @@ export function DashboardClientLayout({
               </button>
             </div>
             <div className="h-6 w-px bg-[#E2E8F0]" />
-            <Link href="/super-admin/profile" className="flex items-center gap-2.5 group">
-              <div className="text-right">
-                <div className="text-[13px] font-bold text-[#0F172A] group-hover:text-[#F5A623] transition-colors">{profile.full_name}</div>
-                <div className="mt-0.5 flex justify-end">
-                  <span className="rounded-full bg-[#F4AC1E] px-1.5 py-[1px] text-[8px] font-extrabold uppercase tracking-wide text-[#022C51]">
-                    {roleLabel}
-                  </span>
-                </div>
-              </div>
-              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#012C51] text-xs font-bold text-white shadow-[0_0_0_2px_#DBEAFE] group-hover:bg-[#F5A623] transition-colors">
-                {initials}
-              </div>
-            </Link>
+            <ProfileMenu fullName={profile.full_name} roleLabel={roleLabel} initials={initials} />
           </div>
         </header>
 
