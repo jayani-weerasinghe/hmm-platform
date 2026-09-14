@@ -21,6 +21,7 @@ export async function createChampionAction(
   const fullName = (formData.get('full_name') as string | null)?.trim()
   const email    = (formData.get('email')     as string | null)?.trim().toLowerCase()
   const phone    = (formData.get('phone')     as string | null)?.trim() || null
+  const title    = (formData.get('title')     as string | null)?.trim() || null
   const clubId   = formData.get('club_id')    as string | null
 
   if (!fullName) return { error: 'Full name is required.' }
@@ -63,6 +64,7 @@ export async function createChampionAction(
     full_name: fullName,
     email,
     phone,
+    title,
     role: 'champion',
     club_id: clubId,
     is_active: true,
@@ -82,7 +84,8 @@ export async function createChampionAction(
     details: { full_name: fullName, email, club_id: clubId },
   })
 
-  redirect('/super-admin/champions')
+  revalidatePath('/super-admin/champions')
+  return { success: true }
 }
 
 export async function updateChampionAction(
@@ -94,6 +97,7 @@ export async function updateChampionAction(
   const fullName     = (formData.get('full_name')  as string | null)?.trim()
   const email        = (formData.get('email')      as string | null)?.trim().toLowerCase()
   const phone        = (formData.get('phone')      as string | null)?.trim() || null
+  const title        = (formData.get('title')      as string | null)?.trim() || null
   const clubId       = formData.get('club_id')     as string | null
 
   if (!fullName) return { error: 'Full name is required.' }
@@ -116,7 +120,7 @@ export async function updateChampionAction(
 
   const { data: updated, error: updateError } = await supabase
     .from('profiles')
-    .update({ full_name: fullName, email, phone, club_id: clubId })
+    .update({ full_name: fullName, email, phone, title, club_id: clubId })
     .eq('id', championId)
     .eq('version', knownVersion)
     .select('id')
@@ -149,7 +153,7 @@ export async function updateChampionAction(
 
   revalidatePath(`/super-admin/champions/${championId}`)
   revalidatePath('/super-admin/champions')
-  redirect(`/super-admin/champions/${championId}`)
+  return { success: true }
 }
 
 export async function deactivateChampionAction(

@@ -22,7 +22,7 @@ export function ChampionStatusControls({
     return (
       <a
         href={`/super-admin/champions/${championId}/reactivate`}
-        className="rounded-lg border border-green-300 px-4 py-2 text-sm font-medium text-green-700 hover:bg-green-50"
+        className="flex items-center gap-1.5 rounded-lg border border-[#BBF0C3] bg-white px-4 py-2.5 text-xs font-semibold text-[#0D8275] shadow-sm hover:bg-[#E6FFE7]"
       >
         Reactivate
       </a>
@@ -31,9 +31,9 @@ export function ChampionStatusControls({
 
   if (soleWarning) {
     return (
-      <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800">
+      <div className="rounded-lg border border-[#FDE68A] bg-[#FFFBEB] p-3 text-xs text-[#D97706]">
         This champion was the sole active champion in their club. The club now has no active champions.
-        <button onClick={() => setSoleWarning(false)} className="ml-2 underline">Dismiss</button>
+        <button onClick={() => setSoleWarning(false)} className="ml-2 font-semibold underline">Dismiss</button>
       </div>
     )
   }
@@ -42,7 +42,7 @@ export function ChampionStatusControls({
     return (
       <button
         onClick={() => setConfirm(true)}
-        className="rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
+        className="flex items-center gap-1.5 rounded-lg border border-[#FECACA] bg-white px-4 py-2.5 text-xs font-semibold text-[#DC2626] shadow-sm hover:bg-[#FEF2F2]"
       >
         Deactivate
       </button>
@@ -50,8 +50,8 @@ export function ChampionStatusControls({
   }
 
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
-      <p className="max-w-xs text-xs text-gray-600">
+    <div className="flex items-center gap-3 rounded-lg border border-[#E2E8F0] bg-white p-3 shadow-sm">
+      <p className="max-w-xs text-xs text-[#475569]">
         This will revoke the champion&apos;s login access. Their club and data will be unaffected.
       </p>
       <form
@@ -67,14 +67,14 @@ export function ChampionStatusControls({
         <button
           type="submit"
           disabled={isPending}
-          className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+          className="rounded-lg bg-[#DC2626] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#B91C1C] disabled:opacity-50"
         >
           {isPending ? '…' : 'Yes, Deactivate'}
         </button>
         <button
           type="button"
           onClick={() => setConfirm(false)}
-          className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          className="rounded-lg border border-[#E2E8F0] px-3 py-1.5 text-xs font-semibold text-[#475569] hover:bg-gray-50"
         >
           Cancel
         </button>

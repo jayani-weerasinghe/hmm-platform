@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { NewChampionForm } from './new-champion-form'
+import { CreateChampionForm } from '../create-champion-form'
 
 export const metadata = { title: 'Create Champion — HMM Super Admin' }
 
@@ -12,8 +12,8 @@ export default async function NewChampionPage() {
     .order('name')
 
   return (
-    <div className="p-8">
-      <NewChampionForm clubs={clubs ?? []} />
+    <div className="flex justify-center p-8">
+      <CreateChampionForm clubs={clubs ?? []} />
     </div>
   )
 }
