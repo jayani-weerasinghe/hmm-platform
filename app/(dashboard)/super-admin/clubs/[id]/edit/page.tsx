@@ -8,7 +8,7 @@ export default async function EditClubPage({ params }: { params: Promise<{ id: s
 
   const { data: club } = await supabase
     .from('clubs')
-    .select('id, club_code, name, location, description')
+    .select('id, club_code, name, location, description, contact_email, contact_phone, is_active')
     .eq('id', id)
     .single()
 

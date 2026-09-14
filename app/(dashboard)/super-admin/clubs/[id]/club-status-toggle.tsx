@@ -11,10 +11,10 @@ export function ClubStatusToggle({ clubId, isActive }: { clubId: string; isActiv
     return (
       <button
         onClick={() => setConfirm(true)}
-        className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+        className={`rounded-lg border bg-white px-4 py-2.5 text-xs font-semibold shadow-sm transition-colors ${
           isActive
-            ? 'border border-red-300 text-red-600 hover:bg-red-50'
-            : 'border border-green-300 text-green-700 hover:bg-green-50'
+            ? 'border-[#FCA5A5] text-[#DC2626] hover:bg-red-50'
+            : 'border-[#86EFAC] text-[#16A34A] hover:bg-green-50'
         }`}
       >
         {isActive ? 'Deactivate' : 'Reactivate'}
@@ -29,23 +29,23 @@ export function ClubStatusToggle({ clubId, isActive }: { clubId: string; isActiv
     : 'This will restore access for all Champions and Gatekeepers deactivated when the club was closed.'
 
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
-      <p className="max-w-xs text-xs text-gray-600">{warning}</p>
+    <div className="flex items-center gap-3 rounded-lg border border-[#E2E8F0] bg-white p-3 shadow-sm">
+      <p className="max-w-xs text-xs text-[#475569]">{warning}</p>
       <form action={(fd) => startTransition(() => action(fd))} className="flex gap-2">
         <input type="hidden" name="club_id" value={clubId} />
         <button
           type="submit"
           disabled={isPending}
-          className={`rounded-lg px-3 py-1.5 text-sm font-medium text-white ${
-            isActive ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'
-          } disabled:opacity-50`}
+          className={`rounded-lg px-3 py-1.5 text-xs font-semibold text-white transition-colors disabled:opacity-50 ${
+            isActive ? 'bg-[#DC2626] hover:bg-red-700' : 'bg-[#16A34A] hover:bg-green-700'
+          }`}
         >
           {isPending ? '…' : `Yes, ${label}`}
         </button>
         <button
           type="button"
           onClick={() => setConfirm(false)}
-          className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          className="rounded-lg border border-[#E2E8F0] px-3 py-1.5 text-xs font-semibold text-[#475569] hover:bg-gray-50"
         >
           Cancel
         </button>
