@@ -22,6 +22,8 @@ export async function createClubAction(
   const name       = (formData.get('name')         as string | null)?.trim()
   const location   = (formData.get('location')     as string | null)?.trim()
   const description = (formData.get('description') as string | null)?.trim() || null
+  const contactEmail = (formData.get('contact_email') as string | null)?.trim() || null
+  const contactPhone = (formData.get('contact_phone') as string | null)?.trim() || null
 
   if (!clubCode) return { error: 'Club code is required.' }
   if (!name)     return { error: 'Club name is required.' }
@@ -42,7 +44,11 @@ export async function createClubAction(
 
   const { data: club, error } = await supabase
     .from('clubs')
-    .insert({ club_code: clubCode, name, location, description, created_by: user.id })
+    .insert({
+      club_code: clubCode, name, location, description,
+      contact_email: contactEmail, contact_phone: contactPhone,
+      created_by: user.id,
+    })
     .select('id')
     .single()
 
@@ -70,6 +76,8 @@ export async function updateClubAction(
   const name       = (formData.get('name')      as string | null)?.trim()
   const location   = (formData.get('location')  as string | null)?.trim()
   const description = (formData.get('description') as string | null)?.trim() || null
+  const contactEmail = (formData.get('contact_email') as string | null)?.trim() || null
+  const contactPhone = (formData.get('contact_phone') as string | null)?.trim() || null
 
   if (!name)     return { error: 'Club name is required.' }
   if (!location) return { error: 'Location is required.' }
@@ -80,7 +88,7 @@ export async function updateClubAction(
 
   const { error } = await supabase
     .from('clubs')
-    .update({ name, location, description })
+    .update({ name, location, description, contact_email: contactEmail, contact_phone: contactPhone })
     .eq('id', clubId)
 
   if (error) {

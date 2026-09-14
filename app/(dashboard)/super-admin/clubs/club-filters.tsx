@@ -16,18 +16,18 @@ export function ClubFilters({ q, status }: { q?: string; status?: string }) {
   }, [router, pathname, q, status])
 
   return (
-    <div className="flex gap-3">
+    <div className="flex gap-3 font-[family-name:var(--font-inter)]">
       <input
         type="search"
         placeholder="Search by name…"
         defaultValue={q}
         onChange={e => update('q', e.target.value)}
-        className="rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-700 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#F5A623]/40"
+        className="rounded-lg border border-[#E2E8F0] bg-white px-4 py-2.5 text-[13px] text-[#0F172A] placeholder:text-[#64748B] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#F4AC1E]/40"
       />
       <select
         defaultValue={status ?? ''}
         onChange={e => update('status', e.target.value)}
-        className="rounded-lg border border-gray-200 bg-white pl-4 pr-9 py-2.5 text-sm text-gray-700 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#F5A623]/40"
+        className="rounded-lg border border-[#E2E8F0] bg-white pl-4 pr-9 py-2.5 text-[13px] text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#F4AC1E]/40"
       >
         <option value="">All statuses</option>
         <option value="active">Active</option>
