@@ -1,8 +1,21 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useState } from 'react'
 import Link from 'next/link'
-import { createAnnouncementAction, updateAnnouncementAction, type AnnouncementActionState } from '@/actions/announcements'
+import { updateAnnouncementAction, type AnnouncementActionState } from '@/actions/announcements'
+
+const AUDIENCE_OPTIONS = [
+  { value: 'all', label: 'All Users', caption: 'Admins & Field', icon: '/icons/audience-all.svg', iconClass: 'h-[10px] w-5' },
+  { value: 'champions', label: 'Champions', caption: 'Peer advocates', icon: '/icons/audience-champions.svg', iconClass: 'h-[17px] w-[17.5px]' },
+  { value: 'gatekeepers', label: 'Gatekeepers', caption: 'Clinical leads', icon: '/icons/audience-gatekeepers.svg', iconClass: 'h-[17px] w-[13px]' },
+  { value: 'specific_clubs', label: 'Specific Cohort', caption: 'Selected club', icon: '/icons/audience-cohort.svg', iconClass: 'h-[13px] w-[18px]' },
+]
+
+const PRIORITY_OPTIONS = [
+  { value: 'standard', label: 'Standard Notice', icon: '/icons/priority-standard.svg' },
+  { value: 'mandatory', label: 'Mandatory / Sign-off', icon: '/icons/priority-mandatory.svg' },
+  { value: 'urgent', label: 'Urgent Broadcast', icon: '/icons/priority-urgent.svg' },
+]
 
 interface AnnouncementValues {
   id: string
@@ -10,106 +23,203 @@ interface AnnouncementValues {
   body: string
   publish_date: string
   expiry_date: string | null
+  priority: 'standard' | 'mandatory' | 'urgent'
+  audience: 'all' | 'champions' | 'gatekeepers' | 'specific_clubs'
+  status: 'draft' | 'published'
+  club_id: string | null
 }
 
 function toDateInputValue(value: string) {
   return value.slice(0, 10)
 }
 
-export function AnnouncementForm({ announcement }: { announcement?: AnnouncementValues }) {
-  const isEdit = !!announcement
-  const action = isEdit ? updateAnnouncementAction : createAnnouncementAction
-  const [state, formAction, isPending] = useActionState<AnnouncementActionState, FormData>(action, null)
+export function AnnouncementForm({
+  announcement,
+  clubs,
+}: {
+  announcement: AnnouncementValues
+  clubs: { id: string; name: string }[]
+}) {
+  const [state, formAction, isPending] = useActionState<AnnouncementActionState, FormData>(updateAnnouncementAction, null)
+  const [audience, setAudience] = useState(announcement.audience)
+  const [priority, setPriority] = useState(announcement.priority)
+  const [status, setStatus] = useState(announcement.status)
+  const [hasExpiry, setHasExpiry] = useState(!!announcement.expiry_date)
 
   const backHref = '/super-admin/announcements'
 
   return (
-    <div className="p-8">
+    <div className="p-8 font-[family-name:var(--font-inter)]">
       <div className="mb-6">
-        <Link href={backHref} className="text-sm text-blue-600 hover:text-blue-800">
+        <Link href={backHref} className="text-sm font-semibold text-[#1E4BB8] hover:underline">
           ← Back to Announcements
         </Link>
-        <h1 className="mt-3 text-2xl font-semibold text-gray-900">{isEdit ? 'Edit Announcement' : 'Create Announcement'}</h1>
+        <h1 className="mt-3 text-[22px] font-bold tracking-[-0.22px] text-[#0F172A]">Edit Announcement</h1>
       </div>
 
-      <div className="mx-auto max-w-xl rounded-xl bg-white p-8 ring-1 ring-gray-200">
-        {state?.error && (
-          <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">
-            {state.error}
-          </div>
-        )}
-        <form action={formAction} className="space-y-5">
-          {isEdit && <input type="hidden" name="announcement_id" value={announcement.id} />}
+      <div className="mx-auto max-w-[672px] rounded-2xl bg-white shadow-[0_1px_1px_rgba(0,0,0,0.05)]">
+        <form action={formAction} className="flex flex-col">
+          <input type="hidden" name="announcement_id" value={announcement.id} />
+          <input type="hidden" name="audience" value={audience} />
+          <input type="hidden" name="priority" value={priority} />
+          <input type="hidden" name="intent" value={status === 'draft' ? 'draft' : 'publish'} />
 
-          <div>
-            <label htmlFor="title" className="block text-sm font-medium text-gray-700">
-              Title <span className="text-red-500">*</span>
-            </label>
-            <input
-              id="title"
-              name="title"
-              type="text"
-              required
-              defaultValue={announcement?.title}
-              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+          <div className="flex flex-col gap-4 p-6">
+            {state?.error && (
+              <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">
+                {state.error}
+              </div>
+            )}
 
-          <div>
-            <label htmlFor="body" className="block text-sm font-medium text-gray-700">
-              Body <span className="text-red-500">*</span>
-            </label>
-            <textarea
-              id="body"
-              name="body"
-              rows={5}
-              required
-              defaultValue={announcement?.body}
-              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
             <div>
-              <label htmlFor="publish_date" className="block text-sm font-medium text-gray-700">
-                Publish Date <span className="text-red-500">*</span>
+              <label htmlFor="title" className="mb-1.5 block text-[13px] font-medium tracking-[0.24px] text-[#0F172A]">
+                Announcement Title <span className="text-[#DC2626]">*</span>
               </label>
               <input
-                id="publish_date"
-                name="publish_date"
-                type="date"
+                id="title"
+                name="title"
+                type="text"
                 required
-                defaultValue={announcement ? toDateInputValue(announcement.publish_date) : undefined}
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+                defaultValue={announcement.title}
+                className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
               />
-              <p className="mt-1 text-xs text-gray-400">Today for immediate publish, or a future date to schedule.</p>
             </div>
+
+            <div className="flex flex-col gap-2">
+              <h3 className="text-[13px] font-medium tracking-[0.24px] text-[#0F172A]">Target Audience &amp; Visibility</h3>
+              <div className="flex gap-2.5">
+                {AUDIENCE_OPTIONS.map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setAudience(opt.value as typeof audience)}
+                    className={`flex flex-1 flex-col items-center gap-1 rounded-lg border p-3 transition-colors ${
+                      audience === opt.value ? 'border-[#4192DA] bg-[#F4F7FF]' : 'border-[#CBD5E1] hover:bg-slate-50'
+                    }`}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={opt.icon} alt="" className={opt.iconClass} />
+                    <span className="mt-1 text-[11px] font-semibold tracking-[0.44px] text-[#0F172A]">{opt.label}</span>
+                    <span className="text-[10px] text-[#64748B]">{opt.caption}</span>
+                  </button>
+                ))}
+              </div>
+              {audience === 'specific_clubs' && (
+                <div className="relative mt-1">
+                  <select
+                    name="club_id"
+                    required
+                    defaultValue={announcement.club_id ?? ''}
+                    className="h-10 w-full appearance-none rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 pr-9 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
+                  >
+                    <option value="" disabled>Select an active club…</option>
+                    {clubs.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/icons/chevron-down.svg" alt="" className="pointer-events-none absolute right-3.5 top-1/2 h-[6px] w-[9px] -translate-y-1/2" />
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <h3 className="text-[12px] font-semibold tracking-[0.24px] text-[#0F172A]">Priority &amp; Urgency Level</h3>
+              <div className="flex flex-wrap gap-2">
+                {PRIORITY_OPTIONS.map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setPriority(opt.value as typeof priority)}
+                    className={`flex items-center gap-1.5 rounded-full border px-3.5 py-[7px] text-[11px] font-semibold tracking-[0.44px] transition-colors ${
+                      priority === opt.value
+                        ? 'border-[#FFBA37] bg-[rgba(255,222,172,0.5)] text-[#281900] ring-2 ring-[#7E5700]'
+                        : 'border-[#CBD5E1] text-[#475569] hover:bg-slate-50'
+                    }`}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={opt.icon} alt="" className="h-3 w-3" />
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div>
-              <label htmlFor="expiry_date" className="block text-sm font-medium text-gray-700">
-                Expiry Date
+              <label htmlFor="body" className="mb-1.5 block text-[13px] font-medium tracking-[0.24px] text-[#0F172A]">
+                Announcement Content <span className="text-[#DC2626]">*</span>
               </label>
-              <input
-                id="expiry_date"
-                name="expiry_date"
-                type="date"
-                defaultValue={announcement?.expiry_date ? toDateInputValue(announcement.expiry_date) : undefined}
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+              <textarea
+                id="body"
+                name="body"
+                rows={5}
+                required
+                defaultValue={announcement.body}
+                className="w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 py-2.5 text-[13px] leading-[21px] text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
               />
-              <p className="mt-1 text-xs text-gray-400">Optional — leave blank to never expire.</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="publish_date" className="mb-1.5 block text-[13px] font-medium tracking-[0.24px] text-[#0F172A]">
+                  Publish Date <span className="text-[#DC2626]">*</span>
+                </label>
+                <input
+                  id="publish_date"
+                  name="publish_date"
+                  type="date"
+                  required
+                  defaultValue={toDateInputValue(announcement.publish_date)}
+                  className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-[13px] font-medium tracking-[0.24px] text-[#0F172A]">
+                  Status
+                </label>
+                <div className="flex h-10 items-center gap-4 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5">
+                  <label className="flex items-center gap-1.5 text-[13px] text-[#0F172A]">
+                    <input type="radio" checked={status === 'published'} onChange={() => setStatus('published')} className="h-3.5 w-3.5 accent-[#003495]" />
+                    Published
+                  </label>
+                  <label className="flex items-center gap-1.5 text-[13px] text-[#0F172A]">
+                    <input type="radio" checked={status === 'draft'} onChange={() => setStatus('draft')} className="h-3.5 w-3.5 accent-[#003495]" />
+                    Draft
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label className="flex items-center gap-2 text-[13px] text-[#475569]">
+                <input
+                  type="checkbox"
+                  checked={hasExpiry}
+                  onChange={e => setHasExpiry(e.target.checked)}
+                  className="h-[13px] w-[13px] accent-[#003495]"
+                />
+                Set expiration date (auto-archive after this date)
+              </label>
+              {hasExpiry && (
+                <input
+                  type="date"
+                  name="expiry_date"
+                  defaultValue={announcement.expiry_date ? toDateInputValue(announcement.expiry_date) : undefined}
+                  className="mt-2 h-10 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
+                />
+              )}
             </div>
           </div>
 
-          <div className="flex gap-3 pt-2">
+          <div className="flex items-center gap-3 border-t border-[#E2E8F0] px-6 py-4">
             <button
               type="submit"
               disabled={isPending}
-              className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-400"
+              className="rounded-lg bg-[#F4AC1E] px-5 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
             >
-              {isPending ? (isEdit ? 'Saving…' : 'Publishing…') : (isEdit ? 'Save Changes' : 'Publish Announcement')}
+              {isPending ? 'Saving…' : 'Save Changes'}
             </button>
             <Link
               href={backHref}
-              className="rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              className="rounded-lg bg-[#F1F5F9] px-5 py-2.5 text-[13px] font-medium text-[#0F172A] transition-colors hover:bg-[#E2E8F0]"
             >
               Cancel
             </Link>

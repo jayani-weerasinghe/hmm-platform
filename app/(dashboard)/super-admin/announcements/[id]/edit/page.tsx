@@ -10,13 +10,16 @@ export default async function EditAnnouncementPage({
   const { id } = await params
   const supabase = await createClient()
 
-  const { data: announcement } = await supabase
-    .from('announcements')
-    .select('id, title, body, publish_date, expiry_date')
-    .eq('id', id)
-    .single()
+  const [{ data: announcement }, { data: clubs }] = await Promise.all([
+    supabase
+      .from('announcements')
+      .select('id, title, body, publish_date, expiry_date, priority, audience, status, club_id')
+      .eq('id', id)
+      .single(),
+    supabase.from('clubs').select('id, name').eq('is_active', true).order('name'),
+  ])
 
   if (!announcement) notFound()
 
-  return <AnnouncementForm announcement={announcement} />
+  return <AnnouncementForm announcement={announcement} clubs={clubs ?? []} />
 }

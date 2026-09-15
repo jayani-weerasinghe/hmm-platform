@@ -1,95 +1,104 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import { AnnouncementSearch } from './announcement-search'
-import { AnnouncementDeleteButton } from './announcement-delete-button'
+import { AnnouncementFilters } from './announcement-filters'
+import { AnnouncementStatusTabs } from './announcement-status-tabs'
+import { AnnouncementCard, type AnnouncementCardData } from './announcement-card'
+import { computeStatus } from './announcement-status'
 
 export const metadata = { title: 'Announcements — HMM Super Admin' }
-
-function statusOf(publishDate: string, expiryDate: string | null) {
-  const now = new Date()
-  if (new Date(publishDate) > now) return { label: 'Scheduled', cls: 'bg-yellow-100 text-yellow-700' }
-  if (expiryDate && new Date(expiryDate) <= now) return { label: 'Expired', cls: 'bg-gray-100 text-gray-600' }
-  return { label: 'Active', cls: 'bg-green-100 text-green-700' }
-}
 
 export default async function AnnouncementsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>
+  searchParams: Promise<{ q?: string; audience?: string; status?: string }>
 }) {
-  const { q } = await searchParams
+  const { q, audience, status } = await searchParams
   const supabase = await createClient()
 
+  // Super Admin manages announcements regardless of audience scope — club_id
+  // is just cohort-targeting metadata here, not a data boundary (Champions
+  // can't create announcements yet, so there's no other author to scope
+  // against).
   let query = supabase
     .from('announcements')
-    .select('id, title, body, publish_date, expiry_date')
-    .is('club_id', null)
+    .select('id, title, body, publish_date, expiry_date, priority, audience, status, club_id, clubs(name)')
     .order('publish_date', { ascending: false })
 
   if (q) query = query.ilike('title', `%${q}%`)
+  if (audience) query = query.eq('audience', audience)
 
-  const { data: announcements } = await query
+  const [{ data: announcements }, { data: allForStats }] = await Promise.all([
+    query,
+    supabase.from('announcements').select('publish_date, expiry_date, status'),
+  ])
+
+  const filtered = status
+    ? (announcements ?? []).filter(a => computeStatus(a.status, a.publish_date, a.expiry_date).tab === status)
+    : (announcements ?? [])
+
+  const cards: AnnouncementCardData[] = filtered.map(a => ({
+    id: a.id,
+    title: a.title,
+    body: a.body,
+    publish_date: a.publish_date,
+    expiry_date: a.expiry_date,
+    priority: a.priority,
+    audience: a.audience,
+    status: a.status,
+    club_name: (a.clubs as unknown as { name: string } | null)?.name ?? null,
+  }))
+
+  const all = allForStats ?? []
+  const counts = { active: 0, scheduled: 0, drafts: 0 }
+  for (const a of all) {
+    const tab = computeStatus(a.status, a.publish_date, a.expiry_date).tab
+    if (tab === 'active') counts.active++
+    else if (tab === 'scheduled') counts.scheduled++
+    else if (tab === 'drafts') counts.drafts++
+  }
 
   return (
-    <div className="p-8">
-      <div className="mb-6 flex items-center justify-between">
-        <div />
+    <div className="flex flex-col gap-6 p-8 font-[family-name:var(--font-inter)]">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-[28px] font-bold tracking-[-0.7px] text-[#0F172A]">Announcements</h1>
+          <p className="max-w-[768px] text-[14px] leading-5 text-[#475569]">
+            Broadcast updates, protocol guidelines, and reminders across champions and clinical gatekeepers.
+          </p>
+        </div>
         <Link
           href="/super-admin/announcements/new"
-          className="rounded-lg bg-[#F5A623] px-4 py-2 text-sm font-semibold text-white hover:bg-[#D97706] transition-colors"
+          className="flex flex-shrink-0 items-center gap-2 rounded-lg bg-[#F4AC1E] px-6 py-2.5 text-[12px] font-semibold tracking-[0.24px] text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F]"
         >
-          Create Announcement
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/icons/plus-small.svg" alt="" width={10.5} height={10.5} />
+          Add New Announcement
         </Link>
       </div>
 
-      <AnnouncementSearch q={q} />
-
-      <div className="mt-4 overflow-hidden rounded-xl bg-white ring-1 ring-gray-200">
-        {!announcements || announcements.length === 0 ? (
-          <div className="p-12 text-center text-sm text-gray-400">
-            {q ? 'No announcements match your search.' : 'No announcements yet. Create one to get started.'}
-          </div>
-        ) : (
-          <table className="min-w-full divide-y divide-gray-100">
-            <thead>
-              <tr className="bg-gray-50 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                <th className="px-6 py-3">Title</th>
-                <th className="px-6 py-3">Publish Date</th>
-                <th className="px-6 py-3">Expiry Date</th>
-                <th className="px-6 py-3">Status</th>
-                <th className="px-6 py-3"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {announcements.map(a => {
-                const status = statusOf(a.publish_date, a.expiry_date)
-                return (
-                  <tr key={a.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900">{a.title}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {new Date(a.publish_date).toLocaleDateString('en-AU', { dateStyle: 'medium' })}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {a.expiry_date ? new Date(a.expiry_date).toLocaleDateString('en-AU', { dateStyle: 'medium' }) : '—'}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${status.cls}`}>
-                        {status.label}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right text-sm">
-                      <Link href={`/super-admin/announcements/${a.id}/edit`} className="mr-3 text-gray-600 hover:text-gray-900">
-                        Edit
-                      </Link>
-                      <AnnouncementDeleteButton announcementId={a.id} />
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        )}
+      <div className="flex flex-col gap-4 rounded-xl bg-white p-4 shadow-[0px_1px_1px_rgba(0,0,0,0.05)]">
+        <AnnouncementFilters q={q} audience={audience} status={status} />
+        <div className="border-t border-[#F1F5F9] pt-2">
+          <AnnouncementStatusTabs active={status} counts={counts} total={all.length} q={q} audience={audience} />
+        </div>
       </div>
+
+      {cards.length === 0 ? (
+        <div className="rounded-xl bg-white p-12 text-center shadow-[0px_1px_1px_rgba(0,0,0,0.05)]">
+          <p className="text-sm text-[#64748B]">
+            {q || audience || status ? 'No announcements match your filters.' : 'No announcements yet.'}
+          </p>
+          {!q && !audience && !status && (
+            <Link href="/super-admin/announcements/new" className="mt-2 inline-block text-sm font-bold text-[#003495]">
+              Create your first announcement →
+            </Link>
+          )}
+        </div>
+      ) : (
+        <div className="flex flex-col gap-4">
+          {cards.map(a => <AnnouncementCard key={a.id} announcement={a} />)}
+        </div>
+      )}
     </div>
   )
 }
