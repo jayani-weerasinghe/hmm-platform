@@ -207,14 +207,6 @@ function ProfileMenu({ fullName, roleLabel, initials }: { fullName: string; role
           >
             My Profile
           </Link>
-          <Link
-            href="/settings/change-password"
-            role="menuitem"
-            onClick={() => setOpen(false)}
-            className="flex items-center px-4 py-2 text-sm font-medium text-[#0F172A] hover:bg-gray-50"
-          >
-            Change Password
-          </Link>
           <button
             type="button"
             role="menuitem"
