@@ -14,6 +14,7 @@ export type DashboardData = {
   activeGatekeepersPerClub: BarItem[]
   totalActiveChampions: number
   onboardingProgress: BarItem[]
+  onboardingMomChangePct: number | null
   gatekeeperStatusPerClub: StackedItem[]
   upcomingEvents: EventsData
   qprData: QPRData
@@ -23,9 +24,43 @@ const EMPTY: DashboardData = {
   activeGatekeepersPerClub: [],
   totalActiveChampions: 0,
   onboardingProgress: [],
+  onboardingMomChangePct: null,
   gatekeeperStatusPerClub: [],
   upcomingEvents: { total: 0, events: [] },
   qprData: { certified: 0, total: 0, expiringSoon: 0 },
+}
+
+// Period boundaries for an onboarding filter, plus the immediately-preceding
+// period of the same length — used to compute the real "+N% vs last month"
+// comparison. "Current" periods (this_month/this_quarter) run to now, not to
+// the calendar period's end, since they're still in progress.
+function getPeriodBounds(filter: OnboardingFilter, now: Date) {
+  if (filter === 'last_month') {
+    const currentStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+    const currentEnd = new Date(now.getFullYear(), now.getMonth(), 1)
+    const prevStart = new Date(now.getFullYear(), now.getMonth() - 2, 1)
+    const prevEnd = currentStart
+    return { currentStart, currentEnd, prevStart, prevEnd }
+  }
+  if (filter === 'this_quarter') {
+    const q = Math.floor(now.getMonth() / 3)
+    const currentStart = new Date(now.getFullYear(), q * 3, 1)
+    const prevStart = new Date(now.getFullYear(), (q - 1) * 3, 1)
+    const prevEnd = currentStart
+    return { currentStart, currentEnd: null, prevStart, prevEnd }
+  }
+  const currentStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const prevStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  const prevEnd = currentStart
+  return { currentStart, currentEnd: null, prevStart, prevEnd }
+}
+
+// null when the prior period had zero onboardings — a percentage change from
+// zero isn't a meaningful real number, so the callout is omitted rather than
+// showing a fabricated/misleading value (e.g. "+∞%" or "+100%").
+function momChange(current: number, previous: number): number | null {
+  if (previous <= 0) return null
+  return Math.round(((current - previous) / previous) * 1000) / 10
 }
 
 export async function getDashboardData(): Promise<DashboardData> {
@@ -44,6 +79,7 @@ export async function getDashboardData(): Promise<DashboardData> {
 
   const now = new Date()
   const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString()
   const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
   const today = now.toISOString().split('T')[0]
   const in90Days = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
@@ -52,12 +88,14 @@ export async function getDashboardData(): Promise<DashboardData> {
     { data: allGk },
     { count: champCount },
     { data: newGk },
+    { count: lastMonthGkCount },
     { data: events },
     { data: certUsers },
   ] = await Promise.all([
     supabase.from('profiles').select('club_id, is_active').eq('role', 'gatekeeper').in('club_id', clubIds),
     supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'champion').eq('is_active', true).in('club_id', clubIds),
     supabase.from('profiles').select('club_id').eq('role', 'gatekeeper').in('club_id', clubIds).gte('created_at', thisMonthStart),
+    supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'gatekeeper').in('club_id', clubIds).gte('created_at', lastMonthStart).lt('created_at', thisMonthStart),
     supabase.from('events').select('id, title, starts_at, club_id, type').gt('starts_at', now.toISOString()).eq('is_cancelled', false).in('club_id', clubIds).order('starts_at', { ascending: true }).lte('starts_at', in30Days),
     supabase.from('profiles').select('qpr_expiry_date').in('role', ['champion', 'gatekeeper']).eq('is_active', true).in('club_id', clubIds),
   ])
@@ -89,6 +127,8 @@ export async function getDashboardData(): Promise<DashboardData> {
       .map(c => ({ club_id: c.id, club_name: c.name, count: newGkByClub[c.id] ?? 0 }))
       .sort((a, b) => b.count - a.count),
 
+    onboardingMomChangePct: momChange((newGk ?? []).length, lastMonthGkCount ?? 0),
+
     gatekeeperStatusPerClub: activeClubs
       .map(c => ({
         club_id: c.id,
@@ -117,45 +157,48 @@ export async function getDashboardData(): Promise<DashboardData> {
   }
 }
 
-export async function getOnboardingProgress(filter: OnboardingFilter): Promise<BarItem[]> {
+export type OnboardingProgressResult = { items: BarItem[]; momChangePct: number | null }
+
+export async function getOnboardingProgress(filter: OnboardingFilter): Promise<OnboardingProgressResult> {
   const supabase = await createClient()
   const { data: clubs } = await supabase.from('clubs').select('id, name').eq('is_active', true)
   const activeClubs = clubs ?? []
-  if (!activeClubs.length) return []
+  if (!activeClubs.length) return { items: [], momChangePct: null }
 
   const clubIds = activeClubs.map(c => c.id)
   const now = new Date()
-  let startDate: Date
-  let endDate: Date | null = null
+  const { currentStart, currentEnd, prevStart, prevEnd } = getPeriodBounds(filter, now)
 
-  if (filter === 'this_month') {
-    startDate = new Date(now.getFullYear(), now.getMonth(), 1)
-  } else if (filter === 'last_month') {
-    startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-    endDate = new Date(now.getFullYear(), now.getMonth(), 1)
-  } else {
-    const q = Math.floor(now.getMonth() / 3)
-    startDate = new Date(now.getFullYear(), q * 3, 1)
-  }
-
-  let query = supabase
+  let currentQuery = supabase
     .from('profiles')
     .select('club_id')
     .eq('role', 'gatekeeper')
     .in('club_id', clubIds)
-    .gte('created_at', startDate.toISOString())
+    .gte('created_at', currentStart.toISOString())
+  if (currentEnd) currentQuery = currentQuery.lt('created_at', currentEnd.toISOString())
 
-  if (endDate) query = query.lt('created_at', endDate.toISOString())
+  const [{ data: newGk }, { count: prevCount }] = await Promise.all([
+    currentQuery,
+    supabase
+      .from('profiles')
+      .select('id', { count: 'exact', head: true })
+      .eq('role', 'gatekeeper')
+      .in('club_id', clubIds)
+      .gte('created_at', prevStart.toISOString())
+      .lt('created_at', prevEnd.toISOString()),
+  ])
 
-  const { data: newGk } = await query
   const countByClub: Record<string, number> = {}
   for (const gk of newGk ?? []) {
     if (gk.club_id) countByClub[gk.club_id] = (countByClub[gk.club_id] ?? 0) + 1
   }
 
-  return activeClubs
-    .map(c => ({ club_id: c.id, club_name: c.name, count: countByClub[c.id] ?? 0 }))
-    .sort((a, b) => b.count - a.count)
+  return {
+    items: activeClubs
+      .map(c => ({ club_id: c.id, club_name: c.name, count: countByClub[c.id] ?? 0 }))
+      .sort((a, b) => b.count - a.count),
+    momChangePct: momChange((newGk ?? []).length, prevCount ?? 0),
+  }
 }
 
 export async function getUpcomingEvents(filter: EventsFilter): Promise<EventsData> {

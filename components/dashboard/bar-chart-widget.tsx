@@ -4,7 +4,8 @@ import { useState } from 'react'
 import Link from 'next/link'
 import type { BarItem } from '@/actions/dashboard'
 
-const MAX_VISIBLE = 10
+const MAX_VISIBLE = 7
+const CHART_HEIGHT = 180
 
 type SortKey = 'name' | 'count'
 type SortDir = 'asc' | 'desc'
@@ -78,29 +79,22 @@ function ViewAllModal({
   )
 }
 
-function RankedRow({ item, rank, maxCount }: { item: BarItem; rank: number; maxCount: number }) {
-  const pct = maxCount > 0 ? Math.max((item.count / maxCount) * 100, item.count > 0 ? 2 : 0) : 0
+// Smallest "nice" step (1/2/5/10 × a power of 10) so the Y axis reads like
+// 0/20/40/60/80 rather than an arbitrary max — matches the real design.
+function niceStep(rough: number): number {
+  if (rough <= 0) return 1
+  const magnitude = Math.pow(10, Math.floor(Math.log10(rough)))
+  const norm = rough / magnitude
+  const niceNorm = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10
+  return niceNorm * magnitude
+}
 
+function VerticalBar({ item, scaleMax }: { item: BarItem; scaleMax: number }) {
+  const pct = scaleMax > 0 ? Math.max((item.count / scaleMax) * 100, item.count > 0 ? 2 : 0) : 0
   return (
-    <div className="flex w-full flex-col gap-1">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="w-4 text-[11px] font-bold text-[#64748B]">#{rank}</span>
-          <span className="text-xs font-bold text-[#0F172A]">{item.club_name}</span>
-          {item.club_location && (
-            <span className="rounded bg-[#F1F5F9] px-1.5 text-[10px] text-[#475569]">{item.club_location}</span>
-          )}
-        </div>
-        <div className="flex items-end whitespace-nowrap">
-          <span className="text-xs font-bold text-[#0F172A]">{item.count}</span>
-          <span className="ml-1 text-[11px] text-[#64748B]">gatekeepers</span>
-        </div>
-      </div>
-      <div className="h-[14px] w-full overflow-hidden rounded-md bg-[#F1F5F9]">
-        {item.count > 0 && (
-          <div className="h-full rounded bg-[#022C51] transition-all" style={{ width: `${pct}%` }} />
-        )}
-      </div>
+    <div className="flex flex-1 flex-col items-center justify-end" style={{ height: CHART_HEIGHT }}>
+      <span className="mb-1 text-[8px] font-semibold text-[#7A859E]">{item.count}</span>
+      <div className="w-full max-w-[45px] bg-[#022C51]" style={{ height: `${pct}%` }} />
     </div>
   )
 }
@@ -108,9 +102,13 @@ function RankedRow({ item, rank, maxCount }: { item: BarItem; rank: number; maxC
 export function BarChartWidget({ data }: { data: BarItem[] }) {
   const [showAll, setShowAll] = useState(false)
   const visible = data.slice(0, MAX_VISIBLE)
-  const maxCount = Math.max(...data.map(d => d.count), 1)
+  const maxCount = Math.max(...data.map(d => d.count), 0)
   const hasMore = data.length > MAX_VISIBLE
   const average = data.length > 0 ? Math.round(data.reduce((sum, d) => sum + d.count, 0) / data.length) : 0
+
+  const step = niceStep(maxCount / 4)
+  const scaleMax = step * 4
+  const gridLabels = [scaleMax, step * 3, step * 2, step, 0]
 
   return (
     <>
@@ -133,16 +131,35 @@ export function BarChartWidget({ data }: { data: BarItem[] }) {
             </Link>
           )}
         </div>
-        <p className="mb-3 text-[11px] text-[#64748B]">Descending order of active, certified gatekeepers.</p>
+        <p className="mb-4 text-[11px] text-[#64748B]">Descending order of active, certified gatekeepers.</p>
 
         {data.length === 0 ? (
           <p className="py-10 text-center text-sm text-gray-400">No data yet</p>
         ) : (
-          <div className="flex flex-col gap-3">
-            {visible.map((item, i) => (
-              <RankedRow key={item.club_id} item={item} rank={i + 1} maxCount={maxCount} />
-            ))}
-          </div>
+          <>
+            <div className="relative ml-6" style={{ height: CHART_HEIGHT }}>
+              <div className="absolute -left-6 top-0 flex h-full flex-col justify-between text-right text-[8px] font-bold text-[#565555]">
+                {gridLabels.map(v => <span key={v}>{v}</span>)}
+              </div>
+              {gridLabels.map(v => (
+                <div
+                  key={v}
+                  className="absolute left-0 right-0 border-t border-[#E2E8F0]"
+                  style={{ bottom: scaleMax > 0 ? `${(v / scaleMax) * 100}%` : 0 }}
+                />
+              ))}
+              <div className="absolute inset-0 flex items-end gap-1.5 px-1">
+                {visible.map(item => <VerticalBar key={item.club_id} item={item} scaleMax={scaleMax} />)}
+              </div>
+            </div>
+            <div className="ml-6 flex gap-1.5 px-1 pt-1.5">
+              {visible.map(item => (
+                <span key={item.club_id} className="flex-1 truncate text-center text-[7px] font-semibold text-[#0F172A]">
+                  {item.club_name}
+                </span>
+              ))}
+            </div>
+          </>
         )}
 
         {data.length > 0 && (

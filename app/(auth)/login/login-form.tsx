@@ -123,16 +123,6 @@ export function LoginForm() {
           {isPending ? 'Signing in…' : 'Sign in'}
         </button>
       </form>
-
-      <p className="mt-6 text-[14px] leading-[1.5] tracking-[0.14px] text-[#67707F] sm:mt-8 sm:text-[15px] lg:mt-12 lg:text-[16px] lg:leading-[1.6] lg:tracking-[0.16px]">
-        Need to change password?{' '}
-        <a
-          href="mailto:support@healingmindsmatter.org"
-          className="font-bold text-[#265BA2] hover:underline"
-        >
-          Contact support
-        </a>
-      </p>
     </div>
   )
 }

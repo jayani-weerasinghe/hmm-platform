@@ -130,7 +130,7 @@ export default async function SuperAdminDashboard() {
           <BarChartWidget data={data.activeGatekeepersPerClub} />
         </div>
         <div className="col-span-6">
-          <OnboardingWidget initialData={data.onboardingProgress} />
+          <OnboardingWidget initialData={data.onboardingProgress} initialMomChangePct={data.onboardingMomChangePct} />
         </div>
       </div>
 

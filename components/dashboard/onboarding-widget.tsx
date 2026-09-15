@@ -1,17 +1,26 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import type { BarItem } from '@/actions/dashboard'
+import type { BarItem, OnboardingFilter } from '@/actions/dashboard'
 import { getOnboardingProgress } from '@/actions/dashboard'
-import type { OnboardingFilter } from '@/actions/dashboard'
 
-const MAX_VISIBLE = 10
+const MAX_LEGEND = 4
 
 const FILTER_LABELS: Record<OnboardingFilter, string> = {
   this_month:   'This Month',
   last_month:   'Last Month',
   this_quarter: 'This Quarter',
 }
+
+const VS_LABELS: Record<OnboardingFilter, string> = {
+  this_month:   'vs last month',
+  last_month:   'vs the month before',
+  this_quarter: 'vs last quarter',
+}
+
+// Real hex values sampled directly from the Figma donut segment assets.
+const SEGMENT_COLORS = ['#022C51', '#8DD0B2', '#DBEAFE', '#DFB879']
+const OTHER_COLOR = '#CBD5E1'
 
 function ViewAllModal({
   open,
@@ -60,27 +69,16 @@ function ViewAllModal({
   )
 }
 
-function OnboardingRow({ item, maxCount }: { item: BarItem; maxCount: number }) {
-  const pct = maxCount > 0 ? Math.max((item.count / maxCount) * 100, item.count > 0 ? 2 : 0) : 0
-
-  return (
-    <div className="flex w-full flex-col gap-1">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-bold text-[#0F172A]">{item.club_name}</span>
-        <span className="text-xs font-extrabold text-[#F4AC1E]">{item.count} new</span>
-      </div>
-      <div className="h-[12px] w-full overflow-hidden rounded-md bg-[#F1F5F9]">
-        {item.count > 0 && (
-          <div className="h-full rounded bg-[#F4AC1E] transition-all" style={{ width: `${pct}%` }} />
-        )}
-      </div>
-    </div>
-  )
-}
-
-export function OnboardingWidget({ initialData }: { initialData: BarItem[] }) {
+export function OnboardingWidget({
+  initialData,
+  initialMomChangePct,
+}: {
+  initialData: BarItem[]
+  initialMomChangePct: number | null
+}) {
   const [filter, setFilter] = useState<OnboardingFilter>('this_month')
   const [data, setData] = useState(initialData)
+  const [momChangePct, setMomChangePct] = useState(initialMomChangePct)
   const [isPending, startTransition] = useTransition()
   const [showAll, setShowAll] = useState(false)
 
@@ -89,60 +87,116 @@ export function OnboardingWidget({ initialData }: { initialData: BarItem[] }) {
     setFilter(next)
     startTransition(async () => {
       const fresh = await getOnboardingProgress(next)
-      setData(fresh)
+      setData(fresh.items)
+      setMomChangePct(fresh.momChangePct)
     })
   }
 
-  const visible = data.slice(0, MAX_VISIBLE)
-  const maxCount = Math.max(...data.map(d => d.count), 1)
-  const hasMore = data.length > MAX_VISIBLE
-  const totalOnboarded = data.reduce((sum, d) => sum + d.count, 0)
+  // Real clubs with any onboarding this period, descending — a 0-count club
+  // contributes nothing to a proportion chart, so it's excluded here (still
+  // present in the "view all" table below).
+  const withOnboarding = [...data].filter(d => d.count > 0).sort((a, b) => b.count - a.count)
+  const total = withOnboarding.reduce((sum, d) => sum + d.count, 0)
+  const top = withOnboarding.slice(0, MAX_LEGEND)
+  const otherCount = withOnboarding.slice(MAX_LEGEND).reduce((sum, d) => sum + d.count, 0)
+
+  const segments = [
+    ...top.map((item, i) => ({ label: item.club_name, count: item.count, color: SEGMENT_COLORS[i] })),
+    ...(otherCount > 0 ? [{ label: 'Other Clubs', count: otherCount, color: OTHER_COLOR }] : []),
+  ]
+
+  let cumulative = 0
+  const gradientStops = segments.map(seg => {
+    const start = total > 0 ? (cumulative / total) * 100 : 0
+    cumulative += seg.count
+    const end = total > 0 ? (cumulative / total) * 100 : 0
+    return `${seg.color} ${start}% ${end}%`
+  }).join(', ')
+
+  const hasMore = data.length > 10
 
   return (
     <>
       <div className="flex h-full flex-col rounded-2xl bg-white p-5">
-        <div className="mb-1 flex items-center justify-between gap-2">
+        <div className="mb-6 flex items-center justify-between gap-2">
           <h2 className="font-[family-name:var(--font-jakarta)] text-base font-bold text-[#0F172A]">Club Onboarding Progress</h2>
-          <div className="flex items-center gap-0.5 rounded-lg bg-[#F1F5F9] p-0.5">
-            {(Object.keys(FILTER_LABELS) as OnboardingFilter[]).map(f => (
-              <button
-                key={f}
-                onClick={() => handleFilter(f)}
-                disabled={isPending}
-                className={`rounded-md px-3 py-1 text-[11px] font-bold transition-colors disabled:opacity-60 ${
-                  filter === f ? 'bg-white text-[#1E4BB8]' : 'text-[#64748B] hover:text-[#0F172A]'
-                }`}
-              >
-                {FILTER_LABELS[f]}
-              </button>
-            ))}
+          <div className="relative flex-shrink-0">
+            <select
+              value={filter}
+              onChange={e => handleFilter(e.target.value as OnboardingFilter)}
+              disabled={isPending}
+              className="appearance-none rounded-lg bg-[#F9F9F9] py-1.5 pl-3 pr-7 text-[13px] text-[#0F172A] focus:outline-none disabled:opacity-60"
+            >
+              {(Object.keys(FILTER_LABELS) as OnboardingFilter[]).map(f => (
+                <option key={f} value={f}>{FILTER_LABELS[f]}</option>
+              ))}
+            </select>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/icons/chevron-down.svg" alt="" className="pointer-events-none absolute right-2.5 top-1/2 h-[6px] w-[9px] -translate-y-1/2" />
           </div>
         </div>
-        <p className="mb-3 text-[11px] text-[#64748B]">Newly certified gatekeepers joining active cohorts this period.</p>
 
-        {data.length === 0 ? (
+        {total === 0 ? (
           <p className="py-10 text-center text-sm text-gray-400">No data yet</p>
         ) : (
-          <div className="flex flex-col gap-3.5">
-            {visible.map(item => (
-              <OnboardingRow key={item.club_id} item={item} maxCount={maxCount} />
-            ))}
+          <div className="flex items-center gap-6">
+            <div
+              className="relative h-[150px] w-[150px] flex-shrink-0 rounded-full"
+              style={{ background: `conic-gradient(${gradientStops})` }}
+            >
+              <div className="absolute inset-[20px] flex flex-col items-center justify-center rounded-full bg-white text-center">
+                <span className="text-[28px] font-extrabold leading-none text-[#0F172A]">{total}</span>
+                <span className="mt-1.5 text-[11px] font-medium leading-tight text-[#64748B]">
+                  Gatekeepers<br />Onboarded
+                </span>
+              </div>
+            </div>
+            <div className="flex min-w-0 flex-1 flex-col gap-4">
+              {segments.map(seg => (
+                <div key={seg.label} className="flex items-center gap-2 text-[13px]">
+                  <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ backgroundColor: seg.color }} />
+                  <span className="min-w-0 flex-1 truncate font-semibold text-[#0F172A]">{seg.label}</span>
+                  <span className="flex-shrink-0 font-extrabold text-black">{seg.count}</span>
+                  <span className="w-9 flex-shrink-0 text-right text-[12px] font-semibold text-[#BAB8B3]">
+                    {Math.round((seg.count / total) * 100)}%
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {momChangePct !== null && (
+          <div className="mt-4 flex items-center justify-between gap-3 rounded-xl bg-[#F6F5F5] p-3.5">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-[5px] bg-[#DBEAFE]">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/icons/users-filled-small.svg" alt="" width={14} height={14} />
+              </span>
+              <div className="flex flex-col">
+                <span className={`text-[15px] font-extrabold ${momChangePct >= 0 ? 'text-[#0F172A]' : 'text-[#DC2626]'}`}>
+                  {momChangePct >= 0 ? '+' : ''}{momChangePct}%
+                </span>
+                <span className="text-[11px] text-[#64748B]">
+                  {momChangePct >= 0 ? 'More' : 'Fewer'} gatekeepers onboarded {filter === 'this_quarter' ? 'this quarter' : filter === 'last_month' ? 'last month' : 'this month'}
+                </span>
+              </div>
+            </div>
+            <div className="flex flex-shrink-0 flex-col items-end gap-1">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/icons/trend-growth.svg" alt="" width={16} height={16} />
+              <span className="whitespace-nowrap text-[11px] text-[#64748B]">{VS_LABELS[filter]}</span>
+            </div>
           </div>
         )}
 
         {hasMore && (
           <button
             onClick={() => setShowAll(true)}
-            className="mt-4 self-start text-xs font-bold text-[#1E4BB8] hover:underline"
+            className="mt-3 self-start text-xs font-bold text-[#1E4BB8] hover:underline"
           >
             View all {data.length} clubs →
           </button>
-        )}
-
-        {data.length > 0 && (
-          <div className="mt-4 border-t border-[#E2E8F0] pt-3 text-[11px] text-[#64748B]">
-            Total onboarded this period: <span className="font-bold text-[#0F172A]">{totalOnboarded} gatekeeper{totalOnboarded !== 1 ? 's' : ''}</span>
-          </div>
         )}
       </div>
       <ViewAllModal open={showAll} onClose={() => setShowAll(false)} data={data} />
