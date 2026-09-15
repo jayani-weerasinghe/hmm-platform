@@ -211,25 +211,25 @@ export default async function ClubsPage({
           </div>
         ) : (
           <>
-            <table className="w-full">
+            <table className="w-full table-fixed">
               <thead>
                 <tr className="h-[46px] border-b border-[rgba(226,232,240,0.8)] bg-[#F9F9F9]">
-                  <th className="min-w-[220px] px-[16px] text-left text-[11px] font-semibold uppercase tracking-[0.55px] text-[#475569]">
+                  <th className="w-[21.6%] px-[16px] text-left text-[11px] font-semibold uppercase tracking-[0.55px] text-[#475569]">
                     Club
                   </th>
-                  <th className="min-w-[200px] px-[16px] text-left text-[11px] font-semibold uppercase tracking-[0.55px] text-[#475569]">
+                  <th className="w-[20.3%] px-[16px] text-left text-[11px] font-semibold uppercase tracking-[0.55px] text-[#475569]">
                     Assigned Champions
                   </th>
-                  <th className="w-[110px] px-[16px] text-center text-[11px] font-semibold uppercase tracking-[0.55px] text-[#475569]">
+                  <th className="w-[12.8%] px-[16px] text-center text-[11px] font-semibold uppercase tracking-[0.55px] text-[#475569]">
                     Gatekeepers
                   </th>
-                  <th className="min-w-[160px] px-[16px] text-left text-[11px] font-semibold uppercase tracking-[0.55px] text-[#475569]">
+                  <th className="w-[19.1%] px-[16px] text-left text-[11px] font-semibold uppercase tracking-[0.55px] text-[#475569]">
                     QPR Readiness
                   </th>
-                  <th className="w-[110px] px-[16px] text-center text-[11px] font-semibold uppercase tracking-[0.55px] text-[#475569]">
+                  <th className="w-[12.1%] px-[16px] text-center text-[11px] font-semibold uppercase tracking-[0.55px] text-[#475569]">
                     Status
                   </th>
-                  <th className="w-[110px] px-[16px]" />
+                  <th className="w-[14.1%] px-[16px]" />
                 </tr>
               </thead>
               <tbody>
