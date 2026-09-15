@@ -214,7 +214,8 @@ no bugs found)
   same persistent "No active Champion" flag (2026-08-12).
 
 **Epic 3 — Profile Management (Story 3.1)** ✅ (fixed 2026-08-12,
-live-QA-passed 2026-09-07 — no bugs found)
+live-QA-passed 2026-09-07, rebuilt to Figma + real Change Password modal
+2026-09-15 — see below)
 - View own profile: name, email, contact info (phone), role, access level —
   all displayed at /super-admin/profile.
 - **2026-08-12 fixes**: "Access level" was a hardcoded string that always
@@ -230,6 +231,61 @@ live-QA-passed 2026-09-07 — no bugs found)
   not rebuilt here.
 - Nav: "My Profile" link in the bottom sidebar section (amber active state);
   top-bar name+avatar is a clickable link to the profile page.
+- **2026-09-15 — full rebuild to Figma (node `82:23037`, fileKey
+  `K1Csx2BjbSmP9NRSDtoEe2`)**: `page.tsx` + `profile-form.tsx` rewritten as a
+  4-card layout (Identity, Personal & Account Details, Security & Sign-in,
+  Role & Permissions), all real Figma icon assets downloaded to
+  `public/icons/`. New migration `20260915060000_add_profile_office_location.sql`
+  adds `profiles.office_location TEXT`; the form now also edits `title` (maps
+  to Figma's "Job Title" — deliberately not "& Primary Role", since role stays
+  read-only everywhere per existing policy) and `preferred_language` (reusing
+  the Gatekeeper form's exact en/si/ta labels). Email field gained a real
+  `navigator.clipboard` copy button.
+  **Fabricated Figma content dropped, not built**: "All Systems Good" badge,
+  fake "ADM-00192" admin ID (no ID scheme exists for admins, unlike the real
+  `club_code`/`gatekeeper_code`), "Protected" badge, and the entire
+  Two-Factor Authentication/TOTP block (no MFA system exists anywhere in this
+  app). Figma's password-strength claim ("Strong & Enterprise-grade") was
+  replaced with an honest tier computed from `checkPasswordRules` (see Change
+  Password note below) — there's no basis for an "enterprise-grade"
+  certification claim. Session Timeout shows the real "20 minutes" value as
+  **read-only** text (no per-user timeout preference exists to edit).
+  Card 4's "Coverage & Out of Office" section is real — queries
+  `role_delegations` where `delegator_id` = the current user and reuses the
+  exact live-status computation from `delegations/page.tsx`; "Set Out of
+  Office" links to the real `/super-admin/permissions/delegations/new` flow.
+  Champion/club counts use real `created_at`/active-club-count queries, not
+  Figma's hardcoded "14".
+- **2026-09-15 — Change Password modal** (Figma node `82:24334`): moved off
+  the old standalone `/settings/change-password` page (now a pure `redirect()`
+  to preserve old bookmarks) into an intercepting-route modal at
+  `app/(dashboard)/super-admin/profile/@modal/(.)change-password/`, using the
+  same `layout.tsx` + `@modal` + `ModalOverlay` pattern as Events/Resources/
+  Announcements/Gatekeepers. **Deliberately reachable only from within
+  `/super-admin/profile`** (header button + Security card button) — not the
+  sign-in page, not any global menu. This required removing a pre-existing
+  "Change Password" link from `components/dashboard-client-layout.tsx`'s
+  global avatar dropdown, which violated that constraint (found via
+  `grep -rln "settings/change-password" app components`). A standalone
+  fallback page still exists at `/super-admin/profile/change-password` for
+  direct navigation/bookmarks — same `ChangePasswordForm` component, no
+  `onClose` prop, so it renders a full success screen instead of closing an
+  overlay. Reuses the existing, already-audited `changePasswordAction`
+  (`actions/auth.ts`) unchanged — only presentation changed. Real
+  show/hide toggles, a real password-strength meter (Weak/Fair/Good/Strong,
+  computed from how many `checkPasswordRules` checks pass — not Figma's
+  fabricated "Enterprise-grade" label), the same 5 live-checked requirement
+  rules plus a 6th static "Cannot match last 5 previous passwords" line, and
+  the real Session Revocation Guarantee banner (describes the actual
+  `signOut({scope:'others'})` behavior from Story 1.3). Figma's "Send
+  password change confirmation receipt" checkbox was **dropped** — there is
+  no per-request opt-in/out mechanism this could wire to (Supabase's
+  password-changed notification is a project-wide toggle, not per-send).
+  End-to-end-tested with a throwaway Auth Admin API test account (not the
+  real admin login): changed its password through the modal, then logged out
+  and back in with the new password to confirm it actually took effect,
+  before deleting the test account and all its audit-log/password-history
+  rows.
 
 **Epic 8 — Champion Account Management (Stories 8.1–8.4)** ✅ (re-verified 2026-08-12,
 live-QA-passed 2026-09-07 — OCC conflict handling and the privilege-escalation
@@ -453,6 +509,176 @@ fully complete, zero known gaps)
   latent since Epic 7/8 shipped; never caught because no real champions with
   a `club_id` existed in the DB until Epic 9 testing created some. Fixed by
   disambiguating to `clubs!profiles_club_id_fkey(...)` in all three files.
+- **2026-09-15 — visual-only restyle**: no Figma design exists anywhere in
+  the file for the Permissions section (confirmed via a full fresh re-fetch
+  of the entire Figma document) — restyled to match this app's own
+  established visual language instead, per an explicit decision with the
+  user. Covered every Permissions screen: Role Defaults, Individual
+  Exceptions (list/new), Groups (list/detail/new), Delegations (list/new),
+  and the Effective Permissions view — card containers, `#F4AC1E` buttons,
+  the segmented pill-tab sub-nav, and the inline "Sure? Yes/No" confirm
+  pattern already used elsewhere (e.g. Champion deactivation). Purely visual:
+  no query logic, table structure, or business rules changed; `statusOf()`,
+  `whyText()`, and all RPC calls preserved verbatim. The Permissions layout
+  also gained a real page-level header (title + description) above the
+  sub-nav, which it previously lacked entirely.
+  **Bug found and fixed during this restyle**: `group-archive-button.tsx`'s
+  confirm-form lost its `<input type="hidden" name="group_id" value={groupId}>`
+  in the process of restyling the surrounding markup, so `archiveGroupAction`
+  received no `group_id` and silently no-opped (`.eq('id', null)` matches
+  nothing) while the UI still showed a success redirect — archiving a group
+  looked like it worked but never actually set `is_active=false`. Caught by
+  archiving a real test group and checking `permission_groups.is_active` via
+  direct DB query; fixed by restoring the hidden input. All other restyled
+  confirm-forms (`exception-revoke-button.tsx`, `group-member-remove-button.tsx`,
+  `delegation-end-button.tsx`) were diffed against `HEAD` afterward and
+  confirmed to have kept their hidden inputs intact — this was an isolated
+  mistake, not a pattern.
+- **2026-09-15 (later the same day) — a Figma design for Permissions was
+  found after all; the note directly above ("no Figma design exists anywhere
+  in the file for the Permissions section") was wrong**. A fresh, deeper pull
+  of the Figma file surfaced a real, detailed Permissions design under node
+  `106:26108` (file `K1Csx2BjbSmP9NRSDtoEe2`) — internally named "super admin
+  profile" (a copy-paste artifact, the same mislabeling pattern seen
+  elsewhere in this file), verified as genuine Permissions content and not a
+  decoy before use. Only the **Role Defaults** page was rebuilt a second time
+  to match it. Individual Exceptions, Groups, Delegations, and the Effective
+  Permissions view keep the app's-own-design-language restyle from the note
+  above — no Figma design exists for those specifically, that part of the
+  original note was correct.
+
+  **New data model** (migration `20260915070000_add_permission_catalog.sql`):
+  adds `permission_catalog` (key, label, description, category,
+  display_order, restricted_to; RLS: super_admin all, authenticated read) to
+  back the design's categorized, human-readable card UI — the raw
+  `permissions.permission` TEXT keys had no label/description/category
+  before this. Renames 7 existing permission keys in place (role_overrides
+  and group_permissions carry forward automatically, same TEXT column):
+  `manage_gatekeepers`→`manage_gatekeepers_add`,
+  `manage_events`→`schedule_qpr_sessions`,
+  `create_announcements`→`publish_club_announcements`,
+  `view_resources`→`download_facilitator_kits`,
+  `register_for_events`→`register_for_training`,
+  `view_announcements`→`view_club_announcements`,
+  `view_events`→`view_event_calendar`. Seeds 6 new champion-role permissions
+  the design introduced with no prior equivalent: `bulk_import_gatekeepers`,
+  `edit_gatekeeper_profiles`, `deactivate_gatekeepers`,
+  `mark_attendance_badges`, `delete_announcements`, `upload_clinical_guides`.
+  Gatekeeper-role rows were deliberately *not* seeded for
+  `edit_gatekeeper_profiles`/`mark_attendance_badges` (the design treats
+  these as champion-only concepts) — the UI treats a missing role+permission
+  row as a real, honest "OFF / not set" state rather than crashing or
+  defaulting to a fabricated value.
+
+  **`restricted_to` mechanism**: a nullable TEXT column on
+  `permission_catalog`. When set (today, only `upload_clinical_guides` →
+  `'super_admin'`), the toggle for that permission renders locked and
+  disabled for every non-matching role in this UI, regardless of whatever is
+  actually stored in `permissions` for that role — champions and
+  gatekeepers can never enable it from here no matter what.
+
+  **What was built**: `app/(dashboard)/super-admin/permissions/page.tsx`
+  now renders — a real, conditionally-rendered delegation banner (shows only
+  when `role_delegations` has a currently-active row, using the same live
+  status computation as the Delegations page; hidden today since none
+  exist); a Champion/Gatekeeper role switcher with real enabled-permission
+  counts (sum of `is_enabled=true` across the 10 catalog-shown keys for that
+  role); four grouped permission-module cards driven by `permission_catalog`
+  filtered to `display_order <= 10` (the 3 renamed-but-hidden baseline keys
+  — `register_for_training`, `view_club_announcements`,
+  `view_event_calendar` — share category *names* with the shown modules, so
+  filtering had to be by `display_order`, not category, to avoid silently
+  pulling them into this view) joined with `permissions` and
+  `role_overrides`, each toggle reusing the existing `RoleDefaultToggle`
+  (Story 9.1) — with a genuinely locked, disabled toggle for
+  `upload_clinical_guides`; a real "N User Exception Active" (amber) / "N
+  User Restricted" (red) chip per item computed from `role_overrides`
+  scoped to the currently-selected role's users (falls back to "Standard
+  Default" gray when no override exists); a right sidebar with three
+  real-data widgets — a live user search
+  (`searchAssignableUsersAction` in `actions/permissions.ts`, active
+  champions/gatekeepers only, computes each match's real allowed/total count
+  via the existing `list_effective_permissions` RPC and links to the
+  existing Effective Permissions page rather than re-implementing
+  resolution logic a second time), an Active Exceptions list (real
+  `role_overrides` joined to `profiles`/`clubs`, GRANTED/RESTRICTED chips,
+  real "N Overrides" badge), and a Custom Groups summary (real
+  `permission_groups` + `group_members` count); and a footer with the real
+  active-user count for the selected role. New
+  `app/(dashboard)/super-admin/permissions/audit/page.tsx` ("Audit History"
+  tab, added to `permissions-sub-nav.tsx`) reads `audit_logs` for
+  `permission%`/`role_delegation%` actions. Real Figma icon assets
+  downloaded to `public/icons/permissions/` (18 files) rather than
+  hand-drawn.
+
+  **Deliberate deviations from the Figma mockup**, per this app's
+  no-fabrication rule:
+  1. Toggle color kept as the app's existing amber (`#F4AC1E`, from the
+     pre-existing `RoleDefaultToggle`) rather than Figma's navy
+     (`#022C51`) — reusing the one established toggle component/token used
+     everywhere else rather than forking a second toggle style for one page.
+  2. Figma's save/status bar has "Reset to Defaults" and "Save Changes"
+     buttons; both dropped. Every toggle here already saves instantly on
+     click (no pending/unsaved state exists to "Save"), and there's no
+     stored factory-default snapshot to "Reset" to (the migration's seed
+     values were a one-time INSERT, not a restorable baseline) — adding
+     either button would have meant fabricating behavior. Kept only the
+     real "saves automatically, applies to N active {role}s" status line.
+  3. Figma shows a second filter-pill row above the role switcher (`All
+     (48)`, `Role Permissions`, `Standard Defaults`, `Individual
+     Exceptions`, `Active`, `Custom Group`, `Group`, `Role Delegation`,
+     `Audit History`) filtering the module-card list in-page. Interpreted
+     this as the existing page-level sub-nav instead (added an "Audit
+     History" tab to it) rather than building a second, separate in-page
+     filter system: the literal "(48)" count is an unbacked Figma
+     placeholder, several labels look like duplicated/decoy content
+     (`Group` vs `Custom Group`), and the concepts these pills map to
+     (exceptions, groups, delegations, audit) already have full, real,
+     dedicated pages built in Epic 9 — building parallel in-page filtering
+     would have meaningfully duplicated that functionality without clear
+     added value.
+  4. Sidebar "Check Access for a User" shows a real allowed/total count and
+     a link to the full Effective Permissions breakdown, instead of
+     Figma's fabricated inline diff sentence ("Full Champion baseline
+     access + **Bulk CSV Upload** approved...") — that sentence isn't a
+     real computed value anywhere in the schema; reusing the existing
+     Effective Permissions page for the actual per-permission breakdown
+     avoided re-implementing the resolution engine's explanation logic a
+     second time.
+
+  **Live-tested end-to-end (2026-09-15)**: toggled
+  `champion`/`bulk_import_gatekeepers` on then off via the UI, confirmed
+  both writes directly in the DB, confirmed both changes appear in the new
+  Audit History tab; created a throwaway test Champion
+  (`zz-test-permissions-qa@example.com`, deleted afterward via the Auth
+  Admin API) plus a temporary `role_overrides` row, `permission_groups`/
+  `group_members` row, and `role_delegations` row to prove the Active
+  Exceptions widget, Custom Groups widget, per-item exception chip,
+  delegation banner, and user-search widget all render real non-empty data
+  correctly — then deleted every row and reconfirmed a clean baseline via
+  direct DB query. **Bug found and fixed during this pass**:
+  `RoleDefaultToggle` instances weren't keyed per role, so switching the
+  Champion/Gatekeeper tab left stale toggle visuals on screen from the
+  previous role until a full page reload, even though the header counts
+  were already correct (server-computed, so always fresh) — fixed by
+  keying each toggle `key={role}` inside `module-card.tsx` so React
+  remounts it (and re-reads `initialEnabled`) on every role switch.
+
+  **Consuming-UI status of the 6 newly-seeded champion permissions** — none
+  are enforced by any real Champion-side UI yet (Champion-side screens
+  remain blocked per "Not started yet" below), but 3 of the 6 already have a
+  genuine Super-Admin-side equivalent a future Champion screen could mirror:
+  - `manage_gatekeepers_add`, `edit_gatekeeper_profiles`,
+    `deactivate_gatekeepers` — Gatekeepers CRUD already exists, but only on
+    the Super Admin side (`/super-admin/gatekeepers`); no Champion-side
+    gatekeeper management screen exists yet to gate with these permissions.
+  - `bulk_import_gatekeepers`, `mark_attendance_badges`,
+    `upload_clinical_guides` — zero real consuming UI anywhere in the app,
+    Super Admin or Champion side. These are fully real in the resolution
+    engine and toggleable on this page, but nothing currently checks them
+    before performing the corresponding action, because that action (bulk
+    CSV import, attendance/badge marking, clinical-guide upload) doesn't
+    exist as a feature anywhere yet.
 
 **Epic 6 — Event & Calendar (Story 6.1)** ✅ (verified 2026-08-11,
 live-QA-passed 2026-09-07 — no bugs found; visually rebuilt to match Figma
