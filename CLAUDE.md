@@ -315,14 +315,58 @@ live-QA-passed 2026-09-07 — see fix below)
   changed (file→file, file→URL, or URL→file alike), not just file→file.
 
 **Epic 5 — Announcement Management (Stories 5.1–5.2)** ✅ (verified 2026-08-10,
-live-QA-passed 2026-09-07 — no bugs found)
+live-QA-passed 2026-09-07 — no bugs found; visually rebuilt to match Figma
+2026-09-15, see note below)
 - Create: title/body/publish_date (date, immediate or future — RLS's
   `NOW() >= publish_date` check makes future-scheduled announcements go
   live automatically with no cron needed) + optional expiry_date (RLS's
-  `NOW() < expiry_date` hides it once passed). Super-Admin announcements
-  are always platform-wide (`club_id = NULL`).
+  `NOW() < expiry_date` hides it once passed).
 - List shows a computed status badge (Scheduled / Active / Expired).
   Edit/Delete both supported.
+- **2026-09-15 Figma rebuild**: list and create/edit rebuilt to match the
+  current Figma design (`1:3160`/`49:12988` list+modal pair, confirmed
+  canonical — no other "Announcements" page frame exists in the file),
+  reusing the exact intercepting-route modal pattern from Champions/Resources
+  (`app/(dashboard)/super-admin/announcements/@modal/`). Schema gap found and
+  closed via migration `20260915020000_add_announcement_metadata_fields.sql`:
+  added `priority` (standard/mandatory/urgent), `audience`
+  (all/champions/gatekeepers/specific_clubs), and `status` (draft/published)
+  enums — the create modal's Priority, Target Audience, and Save-as-Draft
+  fields had no backing columns before this. "Specific Cohort" audience
+  reuses the existing `club_id` column for a single targeted club (not a new
+  join table — Figma's plural "Selected clubs" wording was scoped down to
+  one club per an explicit decision with the user, matching the
+  single-club-per-Champion model used everywhere else). The old "Super-Admin
+  announcements are always platform-wide (`club_id = NULL`)" rule from the
+  original build no longer holds now that Specific Cohort exists — `club_id`
+  is set whenever `audience = 'specific_clubs'`, null otherwise. The Figma
+  modal's "Assigned Club"/"Institutional Title"/"AUTO-FORMAT" badge and a
+  leftover "Deactivate Club" footer button were confirmed (via matching node
+  IDs) to be copy-paste leftovers from the Add Champion modal, not real
+  Announcement fields — dropped, same discipline as the AUTO-FORMAT badge
+  dropped from the Resources card redesign.
+  **Explicitly excluded — no real backing data possible**: the Figma list
+  view also depicts a full read/acknowledgment-tracking system (per-item
+  "X of Y Gatekeepers read", "Send Reminder to Unread", "View Detailed
+  Analytics"). This was deliberately not built — it would require real
+  Gatekeepers and Champions actually reading and acknowledging
+  announcements, which needs a Gatekeeper mobile app and Champion UI that
+  don't exist yet (see "Not started yet" below). Building the progress bars
+  without that would mean fabricating engagement numbers. Tracked as a
+  future gap alongside the existing "announcement read tracking — deferred"
+  backlog item, not fixed.
+  **Champion/Gatekeeper visibility caveat (mirrors the Resources
+  visibility/status caveat from Epic 4)**: `audience`, `priority`, and
+  `status` are Super-Admin bookkeeping only right now — there is no
+  Champion or Gatekeeper-side screen anywhere that reads or filters by
+  these fields (or even lists announcements at all), since Champion-side UI
+  is still platform-wide blocked. Setting an announcement's audience to
+  "Champions" or "Gatekeepers" today does not restrict who can technically
+  see it anywhere in the app; it is metadata for when that UI exists.
+  End-to-end tested live: create (all 3 audience types, all 3 priorities,
+  both Draft/Publish paths), edit (including switching audience to Specific
+  Cohort and status to Published), and delete — each verified via direct DB
+  query against a `TEST-ANNOUNCEMENT-*`-named record, then fully cleaned up.
 
 **Epic 9 — Permission Management (Stories 9.0–9.4)** ✅ (verified 2026-08-11,
 live-QA-passed 2026-09-07, Sc07 screen built and live-tested 2026-09-07 —
@@ -411,27 +455,117 @@ fully complete, zero known gaps)
   disambiguating to `clubs!profiles_club_id_fkey(...)` in all three files.
 
 **Epic 6 — Event & Calendar (Story 6.1)** ✅ (verified 2026-08-11,
-live-QA-passed 2026-09-07 — no bugs found)
-- Super Admin read-only calendar at `/super-admin/events`: Month grid
-  (Monday-start, hand-rolled — no calendar library) and List view, toggled
-  and fully driven by URL params (`view`/`year`/`month`/`club`/`type`/`event`)
-  rather than local component state, specifically so opening/closing an
-  event's detail (Scenario 04) always returns to the exact same calendar
-  position without needing separate client-side state to track it.
-- Event tiles color-coded by type (`event-type.ts`): QPR session blue,
-  awareness program purple, workshop green, other gray.
-  `is_cancelled=true` events excluded from both views (Champions cancel
-  rather than delete events, per Epic 6/checklist 2.4 — matches the existing
-  dashboard `EventsWidget` convention).
+live-QA-passed 2026-09-07 — no bugs found; visually rebuilt to match Figma
+2026-09-15; **Super Admin event creation added the same day as an explicit,
+deliberate Story 6.1 spec deviation — see below, this is no longer
+view-only**)
+- Super Admin calendar at `/super-admin/events`: Month grid, Week grid, and
+  Agenda (list) view, toggled and fully driven by URL params
+  (`view`/`year`/`month`/`day`/`club`/`type`/`q`/`event`) rather than local
+  component state, specifically so opening/closing an event's detail
+  (Scenario 04) always returns to the exact same calendar position without
+  needing separate client-side state to track it.
+- Event tiles color-coded by type (`event-type.ts`). `is_cancelled=true`
+  events excluded from all views (Champions cancel rather than delete
+  events, per Epic 6/checklist 2.4 — matches the existing dashboard
+  `EventsWidget` convention).
 - Detail view is a centered modal (backdrop-click or × closes) — title,
-  type, date/time (range if `ends_at` set), venue, description (omitted
-  entirely if empty), max participants (`Not specified` if null), owning
-  club. No edit/delete controls anywhere (Champion-only per Phase 1).
-- Filter by club and/or event type, combinable, via plain `<select>`s that
-  push URL updates.
-- No events exist yet in the DB (Champion-side event creation is still
-  blocked) — verified with temporary seeded test events across clubs/types/
-  dates, then removed; the page's empty state was also checked.
+  type, date/time (range if `ends_at` set), venue, club, facilitator,
+  max participants, and link (all "Not specified" / omitted if unset),
+  description (omitted if empty). Still no edit/delete controls on this
+  view (only creation was added — see below).
+- Filter by club, event type, and free-text search (title/venue), combinable,
+  via plain `<select>`s/`<input>` that push URL updates.
+- **2026-09-15 Figma rebuild, visual only (first pass)**: re-checked "Phase 1
+  - Super Admin User Stories.md" Story 6.1 before touching anything, which at
+  the time explicitly stated event creation/editing is Champion-only in
+  Phase 1 and Scenario 06 requires "no edit or delete controls shall be
+  shown." Per an explicit decision with the user, the Figma "Add Event"
+  modal was initially **not built** on this basis — only the read-only
+  calendar (`32:771`, confirmed canonical) was restyled: colors/spacing/
+  typography, legend relabeling ("QPR Certification Cohort" / "Awareness
+  Program" / "Clinical & Skills Workshop" — copy only, same underlying
+  `event_type` enum values), and the day grid switched from **Monday-start
+  to Sunday-start** weeks to match the design's SUN–SAT header
+  (`date-grid.ts`). Also added in this pass: an honest "Updated `<time>`"
+  header badge (replacing Figma's fabricated "Live Sync Active," which had
+  no real sync system behind it) and a genuinely new **Week view** (the app
+  only had Month/List before; "List" was renamed "Agenda" to match Figma's
+  label). Figma's "Upcoming QPR Certifications" section (facilitator names,
+  seat-capacity bars, "Manage Cohort Capacities", an accreditation badge)
+  was excluded entirely — no facilitator/capacity schema existed at the
+  time, and it duplicated the Dashboard's real Upcoming Events widget.
+- **2026-09-15, later same day — "Schedule New Event" popup explicitly
+  requested and built, overriding Story 6.1**: the user asked for the
+  Figma "Add Event" modal (`54:18600`, confirmed real — internally
+  mislabeled "Create New Club" from copy-paste, same artifact pattern as
+  every other modal found this session) to actually be built and wired to
+  real Super Admin event creation. This was flagged and explicitly
+  confirmed before building, since it directly reverses the "view-only,
+  no edit/delete" decision made earlier the same day and goes beyond Story
+  6.1's documented Phase 1 scope. **Two schema gaps found and closed** via
+  migration `20260915030000_add_event_metadata_fields.sql`: added nullable
+  `facilitator` and `virtual_link` TEXT columns (both required/shown in the
+  Figma modal, neither existed before). Both fields are now also surfaced
+  in the read-only detail view for consistency (data collected on create
+  should be visible somewhere). One thing dropped as fabricated even after
+  the override: a "Notify Club Members & Champions — send instant calendar
+  invitation" toggle and the button's "& Notify" wording — there is no
+  notification/calendar-invite dispatch system anywhere in the app, so the
+  toggle would have been a no-op; removed the toggle and renamed the button
+  to plain "Schedule Event" per an explicit decision with the user.
+  **RLS gap found and fixed**: `events` had only ever had a Champion INSERT
+  policy (`events: champion insert`, scoped to `club_id = current_user_club_id()`)
+  — the first live create attempt as Super Admin failed with "new row
+  violates row-level security policy for table events." Added migration
+  `20260915040000_add_super_admin_event_insert_policy.sql` with a
+  Super-Admin-scoped INSERT policy. Deliberately INSERT-only — no
+  Super Admin edit/delete UI was built in this pass, so no UPDATE/DELETE
+  policy was added either.
+  End-to-end verified live: seeded 5 `TEST-EVENT-*`-named events across all
+  4 real event types for the visual-redesign pass (confirmed Month/Week/
+  Agenda views, filters, and detail modal against real data via direct SQL
+  insert), then separately created one real `TEST-EVENT-ScheduleModal`
+  through the actual modal UI end-to-end (all fields, including the new
+  facilitator/link, persisted correctly per direct DB query) before
+  deleting all test data and confirming 0 events via direct DB query.
+- **2026-09-15 — "Upcoming QPR Certifications" section added, reduced/real
+  version only**: this section (below the calendar) was originally excluded
+  during the visual-redesign pass above because `facilitator` didn't exist
+  yet and it appeared to duplicate the Dashboard's Upcoming Events widget.
+  Re-evaluated per an explicit user request: the Dashboard widget
+  (`components/dashboard/events-widget.tsx`) covers *all* event types in a
+  compact 3-item KPI-card format — different scope and density than a
+  QPR-only highlight strip — so it wasn't reused directly, but the query
+  shape (`is_cancelled=false`, `starts_at > now()`, ascending) is the same
+  pattern, just filtered to `type='qpr_session'`
+  (`upcoming-qpr-section.tsx` + the new query in `page.tsx`, limit 4 with a
+  real "View All N" count linking to Agenda view pre-filtered to QPR).
+  `facilitator` is now real (added in the `20260915030000` migration above
+  for "Schedule New Event"), so title/facilitator/venue/club/date-time are
+  all genuinely backed. Three things Figma showed were deliberately **not**
+  built, per an explicit decision with the user — no new migration was
+  written for any of them:
+  - **Seat-capacity bars** ("28/30 Seats", "2 seats remaining") — shown
+    instead as a plain "Capacity: N" pill from the real `max_participants`
+    cap, with no registered/enrolled count. There is no registration/RSVP
+    table anywhere in the app, and — same blocker as the Announcements
+    read-tracking exclusion — even adding one now would show a permanent
+    honest "0 of N" until a Champion/Gatekeeper-side registration flow
+    exists to populate it. Flagged as a future item, not built.
+  - **"Manage Cohort Capacities" action** — dropped entirely; nothing real
+    to manage without the registration table above.
+  - **"Accredited with National QPR Institute Guidelines" badge** — dropped
+    permanently, not deferred as a schema gap. This isn't missing data, it's
+    an organizational compliance/certification claim — not something this
+    app should assert on the org's behalf regardless of what schema exists.
+  End-to-end verified live: seeded 2 `TEST-EVENT-QPR-Upcoming*` sessions
+  (with real facilitator names and capacities), confirmed the section
+  renders correctly with real data and that "View All" correctly stays
+  hidden when the total matches what's already shown; confirmed the section
+  renders nothing at all (not an empty-state placeholder) when there are no
+  upcoming QPR sessions; then deleted all test data and confirmed 0 events
+  via direct DB query.
 
 ### 2026-08-12 full-platform audit
 All 9 Super Admin epics were independently re-audited scenario-by-scenario
@@ -625,10 +759,98 @@ user stories that don't exist yet, not on anything left undone here.)
   widen the window generously or fall back to code-review confidence for
   that specific interaction, and say so explicitly in the findings.
 
+### Gatekeepers Management (Super Admin) — net-new, no corresponding user story
+Built 2026-09-15 per an explicit, deliberate user request — same category of
+spec deviation as the Events "Schedule New Event" override above. Before
+building, grepped "Phase 1 - Super Admin User Stories.md" for "gatekeeper"
+and found nothing resembling a standalone Super Admin Gatekeepers management
+story — only dashboard widget specs (Epic 2) and one permission-key example
+(Epic 9's `Manage Gatekeepers` row). CLAUDE.md's own "Not started yet"
+section (below) already documented "Gatekeeper management" as a **Champion**-
+side capability, blocked platform-wide. This section describes a Super
+Admin-side directory/CRUD screen built anyway, at `/super-admin/gatekeepers`.
+
+- **Figma**: list+create pair confirmed real via node-ID search (`32:2791`
+  "Gatekeepers", `49:14459` "add Gatekeepers" → the actual modal is nested at
+  `83:25428`, internally mislabeled "Create New Club" — the same copy-paste
+  artifact pattern found in every other modal this session).
+- **Schema gap closed**: migration `20260915050000_add_gatekeeper_code.sql`
+  adds `profiles.gatekeeper_code` (e.g. "GK-1000"), auto-generated via a
+  Postgres sequence + `next_gatekeeper_code()` function — unlike
+  `clubs.club_code` (manually typed), this one is truly system-generated and
+  read-only in the UI, matching Figma's literal "Auto-generated" caption.
+- **No new RLS policy needed** (unlike the Events "Schedule New Event"
+  flow, which used the regular authenticated client and did need one):
+  `actions/gatekeepers.ts` creates gatekeepers through the **admin
+  (service-role) client**, exactly like `createChampionAction` already
+  does for Champions — service role bypasses RLS entirely, so the existing
+  Champion-only `profiles` INSERT policy was never actually in the way.
+- **Fabricated Figma content excluded, same discipline as everywhere else
+  this session**:
+  - The list view's **"Mobile App Status" column** (Active/Logged in today,
+    Pending 1st Login, Deactivated Mobile Access) — excluded entirely. No
+    session/login/mobile-device tracking exists anywhere in this app (there
+    is no Gatekeeper mobile app in this repo at all).
+  - The create modal's **"Send Mobile App Access Link via SMS & Email"**
+    toggle, which claimed to dispatch "temporary mobile login credentials
+    and crisis escalation toolkit" — no SMS system or crisis toolkit exists.
+    Repurposed honestly as a real (test-mode) email invite via the exact
+    same `admin.auth.admin.inviteUserByEmail(...)` flow already used for
+    Champions (Epic 8) — same `onboarding@resend.dev` test-mode caveat
+    applies (see Epic 1). No toggle is shown; the invite is unconditional
+    and mandatory, same as Champion creation (a `profiles` row cannot exist
+    without a matching `auth.users` row).
+  - The modal's leftover **"Deactivate Club" footer button** and **"Save as
+    Draft"** option — dropped (Club-modal copy-paste cruft; Gatekeepers have
+    no draft concept anywhere else in the app, only active/inactive, same as
+    Champions).
+- **QPR expiry**: computed server-side as certification date + 3 years
+  (`qpr_expiry_date`), matching the Figma banner ("Active for 3 Years...")
+  and the existing 90-day "expiring soon" convention used everywhere else in
+  the app (Club/Champion detail, Dashboard QPR widget) — no new threshold
+  invented.
+- **Built**: list page (search by name/email/phone/gatekeeper_code, Club/
+  Status/Champion filters, in-memory pagination since status is a computed
+  field not a raw column — same pattern as the Champion detail page's
+  roster tab), create modal with **Single Gatekeeper** and **Bulk CSV
+  Upload (up to 50 rows)** modes (both built per explicit request — CSV
+  format: `full_name,email,phone,club_id,certification_date`, processed
+  row-by-row with a per-row results summary, not all-or-nothing), a
+  simplified detail page (no roster/events tabs — unlike Champions, a
+  Gatekeeper doesn't own a roster or events), an edit page, and deactivate/
+  reactivate — all by close visual analogy to the equivalent Champion
+  screens, since no Figma frame exists for any of these four states.
+- **Real infrastructure finding, worth flagging beyond this feature**: while
+  testing, direct calls to Supabase's `/auth/v1/invite` for any address
+  other than `jayani@ensiz.com` returned a hard `{"code":500,"error_code":
+  "unexpected_failure","msg":"Error sending invite email"}` — **not** the
+  silent-200-but-never-arrives behavior the Epic 1 2026-09-14 note
+  documents. This may mean that note is stale, or something about the
+  Resend/SMTP config changed since 2026-09-14. Not independently
+  re-investigated further (out of scope for this feature) — worth a fresh
+  look before the next real Champion/Gatekeeper invite attempt, since a
+  hard failure changes the on-screen behavior too (the create form now
+  shows a visible error for non-`ensiz.com` emails, rather than a false
+  "success").
+- End-to-end verified live: single-gatekeeper create (all fields including
+  `gatekeeper_code` and computed `qpr_expiry_date` verified via direct DB
+  query), bulk CSV with one real row (`jayani@ensiz.com`, succeeded) and one
+  deliberately-invalid row (missing email, correctly rejected with a clear
+  per-row error, batch correctly reported "1 of 2 created" rather than
+  failing the whole upload), edit (certification-date change correctly
+  recalculated the expiry date), deactivate → reactivate, and the detail
+  page — all confirmed against real data, then fully deleted (both the
+  Auth Admin API user records and the cascaded `profiles` rows) and
+  reconfirmed back to the pre-test baseline (1 super_admin, 0 champions,
+  0 gatekeepers) via direct DB query.
+
 ### Not started yet
 - Everything on the Champion side (Gatekeeper management, Champion
   dashboard, events, announcements, resource access) — BLOCKED until
-  Champion user stories are written by the BA.
+  Champion user stories are written by the BA. **Exception**: a Super
+  Admin-side Gatekeepers directory/CRUD screen now exists (see above) —
+  this bullet still accurately describes the Champion side, which remains
+  fully blocked.
 - Everything on the Gatekeeper mobile app — BLOCKED until Gatekeeper user
   stories exist, and until the web app's core features are further along.
 - Recommended extras (push notifications, attendance tracking, announcement
