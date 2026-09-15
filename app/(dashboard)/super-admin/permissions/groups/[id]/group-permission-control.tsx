@@ -35,7 +35,7 @@ export function GroupPermissionControl({
   ]
 
   return (
-    <div className="inline-flex rounded-lg border border-gray-200 p-0.5" role="radiogroup">
+    <div className="inline-flex rounded-lg bg-[#F1F5F9] p-1" role="radiogroup">
       {OPTIONS.map(opt => (
         <button
           key={opt.value}
@@ -44,14 +44,14 @@ export function GroupPermissionControl({
           aria-checked={setting === opt.value}
           disabled={isPending}
           onClick={() => apply(opt.value)}
-          className={`rounded-md px-3 py-1 text-xs font-medium transition-colors disabled:opacity-50 ${
+          className={`rounded-[5px] px-3 py-1 text-[11px] font-semibold tracking-[0.24px] transition-colors disabled:opacity-50 ${
             setting === opt.value
               ? opt.value === 'allow'
                 ? 'bg-green-100 text-green-700'
                 : opt.value === 'deny'
                   ? 'bg-red-100 text-red-700'
-                  : 'bg-gray-200 text-gray-700'
-              : 'text-gray-400 hover:text-gray-600'
+                  : 'bg-white text-[#0F172A] shadow-sm'
+              : 'text-[#94A3B8] hover:text-[#475569]'
           }`}
         >
           {opt.label}

@@ -130,7 +130,7 @@ export function EventsCalendar({ view, year, month, day, club, type, q, events, 
       <div className="flex items-start justify-between gap-4">
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-3">
-            <h1 className="text-[28px] font-bold tracking-[-0.7px] text-[#0F172A] font-[family-name:var(--font-jakarta)]">Events &amp; Calendar</h1>
+            <h1 className="text-[24px] font-bold tracking-[-0.7px] text-[#0F172A]">Events &amp; Calendar</h1>
             <span className="flex items-center gap-1.5 rounded-full bg-[#EFF4FF] px-2.5 py-1 shadow-[0px_1px_1px_rgba(0,0,0,0.05)]">
               <span className="h-2 w-2 rounded-full bg-[#64748B]" />
               <span className="text-[11px] font-semibold tracking-[0.44px] text-[#003495]">Updated {updatedLabel}</span>

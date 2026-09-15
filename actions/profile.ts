@@ -9,6 +9,10 @@ export type ProfileData = {
   email: string
   phone: string | null
   role: string
+  title: string | null
+  preferred_language: string
+  office_location: string | null
+  created_at: string
 }
 
 export async function getProfile(): Promise<ProfileData | null> {
@@ -18,7 +22,7 @@ export async function getProfile(): Promise<ProfileData | null> {
 
   const { data } = await supabase
     .from('profiles')
-    .select('id, full_name, email, phone, role')
+    .select('id, full_name, email, phone, role, title, preferred_language, office_location, created_at')
     .eq('id', user.id)
     .single()
 
@@ -35,14 +39,19 @@ export async function updateProfileAction(
 
   const full_name = (formData.get('full_name') as string | null)?.trim()
   const phone     = (formData.get('phone')     as string | null)?.trim() || null
+  const title     = (formData.get('title')     as string | null)?.trim() || null
+  const preferred_language = (formData.get('preferred_language') as string | null) || 'en'
+  const office_location = (formData.get('office_location') as string | null)?.trim() || null
 
   if (!full_name) return { error: 'Full name is required.' }
   if (full_name.length > 100) return { error: 'Full name must be 100 characters or fewer.' }
   if (phone && phone.length > 30) return { error: 'Phone number must be 30 characters or fewer.' }
+  if (title && title.length > 150) return { error: 'Job title must be 150 characters or fewer.' }
+  if (office_location && office_location.length > 200) return { error: 'Office location must be 200 characters or fewer.' }
 
   const { error } = await supabase
     .from('profiles')
-    .update({ full_name, phone, updated_at: new Date().toISOString() })
+    .update({ full_name, phone, title, preferred_language, office_location, updated_at: new Date().toISOString() })
     .eq('id', user.id)
 
   if (error) return { error: 'Failed to save changes. Please try again.' }
@@ -52,7 +61,7 @@ export async function updateProfileAction(
     action: 'profile.update',
     entityType: 'profile',
     entityId: user.id,
-    details: { updated_fields: ['full_name', 'phone'] },
+    details: { updated_fields: ['full_name', 'phone', 'title', 'preferred_language', 'office_location'] },
   })
 
   return { success: true }

@@ -173,7 +173,7 @@ export default async function ClubsPage({
     <div className="flex flex-col gap-4 p-8 font-[family-name:var(--font-inter)]">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-[28px] font-bold tracking-[-0.7px] text-[#0F172A]">Club Management</h1>
+          <h1 className="text-[24px] font-bold tracking-[-0.7px] text-[#0F172A]">Club Management</h1>
           <p className="mt-1 text-sm text-[#475569]">
             Manage regional clubs, champion assignments, and community health.
           </p>

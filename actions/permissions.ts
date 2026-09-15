@@ -268,6 +268,52 @@ export async function setGroupPermissionAction(formData: FormData) {
   revalidatePath(`/super-admin/permissions/groups/${groupId}`)
 }
 
+// ── Permissions dashboard: quick user lookup widget ─────────────────────────
+
+export type AssignableUserMatch = {
+  id: string
+  full_name: string
+  role: 'champion' | 'gatekeeper'
+  club_name: string | null
+  allowed_count: number
+  total_count: number
+}
+
+export async function searchAssignableUsersAction(query: string): Promise<AssignableUserMatch[]> {
+  const trimmed = query.trim()
+  if (trimmed.length < 2) return []
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+
+  const { data: matches } = await supabase
+    .from('profiles')
+    .select('id, full_name, role, club:clubs!profiles_club_id_fkey(name)')
+    .in('role', ['champion', 'gatekeeper'])
+    .eq('is_active', true)
+    .ilike('full_name', `%${trimmed}%`)
+    .limit(5)
+
+  if (!matches || matches.length === 0) return []
+
+  const results: AssignableUserMatch[] = []
+  for (const m of matches) {
+    const club = Array.isArray(m.club) ? m.club[0] : m.club
+    const { data: rows } = await supabase.rpc('list_effective_permissions', { p_user_id: m.id })
+    const list = (rows ?? []) as { is_enabled: boolean }[]
+    results.push({
+      id: m.id,
+      full_name: m.full_name,
+      role: m.role as 'champion' | 'gatekeeper',
+      club_name: club?.name ?? null,
+      allowed_count: list.filter(r => r.is_enabled).length,
+      total_count: list.length,
+    })
+  }
+  return results
+}
+
 // ── Story 9.4: Temporary Role Delegation ────────────────────────────────────
 
 export type DelegationActionState = { error?: string } | null

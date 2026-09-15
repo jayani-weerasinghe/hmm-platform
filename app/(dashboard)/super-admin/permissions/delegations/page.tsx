@@ -34,27 +34,31 @@ export default async function DelegationsPage() {
   }))
 
   return (
-    <div>
-      <div className="mb-4 flex items-center justify-between">
-        <p className="text-sm text-gray-500">
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between gap-4 rounded-xl bg-white p-4 shadow-[0px_1px_1px_rgba(0,0,0,0.05)]">
+        <p className="text-[13px] leading-5 text-[#475569]">
           A delegate temporarily gains their delegator&apos;s full effective permission set, in
           addition to their own, for the scheduled window.
         </p>
         <Link
           href="/super-admin/permissions/delegations/new"
-          className="rounded-lg bg-[#F5A623] px-4 py-2 text-sm font-semibold text-white hover:bg-[#D97706] transition-colors whitespace-nowrap"
+          className="flex flex-shrink-0 items-center gap-2 rounded-lg bg-[#F4AC1E] px-5 py-2.5 text-[12px] font-semibold tracking-[0.24px] text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F]"
         >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/icons/plus-small.svg" alt="" width={10.5} height={10.5} />
           Create Delegation
         </Link>
       </div>
 
-      <div className="overflow-hidden rounded-xl bg-white ring-1 ring-gray-200">
-        {rows.length === 0 ? (
-          <div className="p-12 text-center text-sm text-gray-400">No delegations yet.</div>
-        ) : (
-          <table className="min-w-full divide-y divide-gray-100">
+      {rows.length === 0 ? (
+        <div className="rounded-xl bg-white p-12 text-center shadow-[0px_1px_1px_rgba(0,0,0,0.05)]">
+          <p className="text-sm text-[#64748B]">No delegations yet.</p>
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-xl bg-white shadow-[0px_1px_1px_rgba(0,0,0,0.05)]">
+          <table className="w-full">
             <thead>
-              <tr className="bg-gray-50 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+              <tr className="border-b border-[#F1F5F9] bg-[#F8FAFC] text-left text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">
                 <th className="px-6 py-3">Delegator</th>
                 <th className="px-6 py-3">Delegate</th>
                 <th className="px-6 py-3">Starts</th>
@@ -63,22 +67,22 @@ export default async function DelegationsPage() {
                 <th className="px-6 py-3"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-[#F1F5F9]">
               {rows.map(d => {
                 const status = statusOf(d.starts_at, d.ends_at, d.ended_early_at, d.ended_reason, d.delegator?.is_active ?? true)
                 const canEnd = !d.ended_early_at && (d.delegator?.is_active ?? true) && new Date(d.ends_at) > new Date()
                 return (
-                  <tr key={d.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900">{d.delegator?.full_name ?? '—'}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{d.delegate?.full_name ?? '—'}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
+                  <tr key={d.id} className="hover:bg-slate-50">
+                    <td className="px-6 py-4 text-[13px] font-semibold text-[#0F172A]">{d.delegator?.full_name ?? '—'}</td>
+                    <td className="px-6 py-4 text-[13px] text-[#475569]">{d.delegate?.full_name ?? '—'}</td>
+                    <td className="px-6 py-4 text-[13px] text-[#475569]">
                       {new Date(d.starts_at).toLocaleDateString('en-AU', { dateStyle: 'medium' })}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
+                    <td className="px-6 py-4 text-[13px] text-[#475569]">
                       {new Date(d.ends_at).toLocaleDateString('en-AU', { dateStyle: 'medium' })}
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${status.cls}`}>
+                      <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold tracking-[0.44px] ${status.cls}`}>
                         {status.label}
                       </span>
                     </td>
@@ -90,8 +94,8 @@ export default async function DelegationsPage() {
               })}
             </tbody>
           </table>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -14,12 +14,20 @@ export function ExceptionFilters({ q }: { q?: string }) {
   }, [router, pathname])
 
   return (
-    <input
-      type="search"
-      placeholder="Search by name or permission…"
-      defaultValue={q}
-      onChange={e => update(e.target.value)}
-      className="rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-700 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#F5A623]/40"
-    />
+    <div className="relative max-w-md">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/icons/search-filter.svg"
+        alt=""
+        className="pointer-events-none absolute left-3.5 top-1/2 h-[15px] w-[15px] -translate-y-1/2"
+      />
+      <input
+        type="search"
+        placeholder="Search by name or permission..."
+        defaultValue={q}
+        onChange={e => update(e.target.value)}
+        className="w-full rounded-lg border border-transparent bg-[#F1F5F9] py-[11px] pl-10 pr-4 text-[13px] text-[#0F172A] placeholder:text-[#64748B] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#F4AC1E]/40"
+      />
+    </div>
   )
 }

@@ -9,24 +9,29 @@ export function DelegationEndButton({ delegationId }: { delegationId: string }) 
 
   if (!confirm) {
     return (
-      <button onClick={() => setConfirm(true)} className="text-red-600 hover:text-red-800">
+      <button
+        type="button"
+        onClick={() => setConfirm(true)}
+        className="rounded-lg px-3 py-1.5 text-[12px] font-semibold tracking-[0.24px] text-[#DC2626] transition-colors hover:bg-red-50"
+      >
         End Now
       </button>
     )
   }
 
   return (
-    <span className="inline-flex items-center gap-2">
-      <span className="text-xs text-gray-500">End this delegation now?</span>
-      <form action={(fd) => startTransition(() => endDelegationAction(fd))} className="inline-flex gap-2">
-        <input type="hidden" name="delegation_id" value={delegationId} />
-        <button type="submit" disabled={isPending} className="font-medium text-red-600 hover:text-red-800 disabled:opacity-50">
-          {isPending ? '…' : 'Yes'}
-        </button>
-        <button type="button" onClick={() => setConfirm(false)} className="text-gray-600 hover:text-gray-900">
-          Cancel
-        </button>
-      </form>
-    </span>
+    <form
+      action={(fd) => startTransition(() => endDelegationAction(fd))}
+      className="flex items-center justify-end gap-1.5 rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-2 py-1.5"
+    >
+      <input type="hidden" name="delegation_id" value={delegationId} />
+      <span className="text-[11px] text-[#475569]">Sure?</span>
+      <button type="submit" disabled={isPending} className="text-[11px] font-semibold text-[#DC2626] disabled:opacity-50">
+        {isPending ? '…' : 'Yes'}
+      </button>
+      <button type="button" onClick={() => setConfirm(false)} className="text-[11px] font-semibold text-[#475569]">
+        No
+      </button>
+    </form>
   )
 }
