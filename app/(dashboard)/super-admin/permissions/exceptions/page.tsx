@@ -30,31 +30,38 @@ export default async function ExceptionsPage({
   }
 
   return (
-    <div>
-      <div className="mb-4 flex items-center justify-between">
-        <p className="text-sm text-gray-500">
-          Every user with an active individual exception — flagged here for periodic review, since
-          these override both Group and Role defaults.
-        </p>
-        <Link
-          href="/super-admin/permissions/exceptions/new"
-          className="rounded-lg bg-[#F5A623] px-4 py-2 text-sm font-semibold text-white hover:bg-[#D97706] transition-colors whitespace-nowrap"
-        >
-          Grant Exception
-        </Link>
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4 rounded-xl bg-white p-4 shadow-[0px_1px_1px_rgba(0,0,0,0.05)]">
+        <div className="flex items-center justify-between gap-4">
+          <p className="text-[13px] leading-5 text-[#475569]">
+            Every user with an active individual exception — flagged here for periodic review, since
+            these override both Group and Role defaults.
+          </p>
+          <Link
+            href="/super-admin/permissions/exceptions/new"
+            className="flex flex-shrink-0 items-center gap-2 rounded-lg bg-[#F4AC1E] px-5 py-2.5 text-[12px] font-semibold tracking-[0.24px] text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F]"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/icons/plus-small.svg" alt="" width={10.5} height={10.5} />
+            Grant Exception
+          </Link>
+        </div>
+        <div className="border-t border-[#F1F5F9] pt-3">
+          <ExceptionFilters q={q} />
+        </div>
       </div>
 
-      <ExceptionFilters q={q} />
-
-      <div className="mt-4 overflow-hidden rounded-xl bg-white ring-1 ring-gray-200">
-        {rows.length === 0 ? (
-          <div className="p-12 text-center text-sm text-gray-400">
+      {rows.length === 0 ? (
+        <div className="rounded-xl bg-white p-12 text-center shadow-[0px_1px_1px_rgba(0,0,0,0.05)]">
+          <p className="text-sm text-[#64748B]">
             {q ? 'No exceptions match your search.' : 'No individual exceptions are currently set.'}
-          </div>
-        ) : (
-          <table className="min-w-full divide-y divide-gray-100">
+          </p>
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-xl bg-white shadow-[0px_1px_1px_rgba(0,0,0,0.05)]">
+          <table className="w-full">
             <thead>
-              <tr className="bg-gray-50 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+              <tr className="border-b border-[#F1F5F9] bg-[#F8FAFC] text-left text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">
                 <th className="px-6 py-3">User</th>
                 <th className="px-6 py-3">Role</th>
                 <th className="px-6 py-3">Permission</th>
@@ -62,14 +69,14 @@ export default async function ExceptionsPage({
                 <th className="px-6 py-3"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-[#F1F5F9]">
               {rows.map(r => (
-                <tr key={r.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900">{r.profile?.full_name ?? '—'}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600 capitalize">{r.profile?.role ?? '—'}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{r.permission}</td>
+                <tr key={r.id} className="hover:bg-slate-50">
+                  <td className="px-6 py-4 text-[13px] font-semibold text-[#0F172A]">{r.profile?.full_name ?? '—'}</td>
+                  <td className="px-6 py-4 text-[13px] capitalize text-[#475569]">{r.profile?.role ?? '—'}</td>
+                  <td className="px-6 py-4 text-[13px] text-[#475569]">{r.permission}</td>
                   <td className="px-6 py-4">
-                    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                    <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold tracking-[0.44px] ${
                       r.is_enabled ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
                     }`}>
                       {r.is_enabled ? 'Allow' : 'Deny'}
@@ -82,8 +89,8 @@ export default async function ExceptionsPage({
               ))}
             </tbody>
           </table>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }

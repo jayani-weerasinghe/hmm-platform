@@ -56,38 +56,40 @@ export default async function GroupDetailPage({
   const permissionKeys = Array.from(new Set((permissionRows ?? []).map(p => p.permission))).sort()
 
   return (
-    <div>
-      <div className="mb-6 flex items-start justify-between">
+    <div className="flex flex-col gap-6 font-[family-name:var(--font-inter)]">
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <Link href="/super-admin/permissions/groups" className="text-sm text-blue-600 hover:text-blue-800">
+          <Link href="/super-admin/permissions/groups" className="text-[13px] font-semibold text-[#1E4BB8] hover:underline">
             ← Back to Groups
           </Link>
-          <h1 className="mt-3 text-2xl font-semibold text-gray-900">{group.name}</h1>
-          {group.description && <p className="mt-1 text-sm text-gray-500">{group.description}</p>}
+          <h1 className="mt-3 text-[22px] font-bold tracking-[-0.22px] text-[#0F172A] font-[family-name:var(--font-jakarta)]">
+            {group.name}
+          </h1>
+          {group.description && <p className="mt-1 text-[13px] text-[#475569]">{group.description}</p>}
         </div>
         {group.is_active && <GroupArchiveButton groupId={group.id} />}
       </div>
 
       {!group.is_active && (
-        <div className="mb-6 rounded-lg bg-gray-100 p-3 text-sm text-gray-600">
+        <div className="rounded-lg bg-[#F1F5F9] p-3 text-[13px] text-[#475569]">
           This group is archived. Its permissions no longer apply to members.
         </div>
       )}
 
-      <div className="mb-6">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-500">
+      <div>
+        <h2 className="mb-3 text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">
           Members ({memberRows.length})
         </h2>
-        <div className="overflow-hidden rounded-xl bg-white ring-1 ring-gray-200">
+        <div className="overflow-hidden rounded-xl bg-white shadow-[0px_1px_1px_rgba(0,0,0,0.05)]">
           {memberRows.length === 0 ? (
-            <p className="p-6 text-sm text-gray-400">No members yet.</p>
+            <p className="p-6 text-sm text-[#94A3B8]">No members yet.</p>
           ) : (
-            <table className="min-w-full divide-y divide-gray-100">
-              <tbody className="divide-y divide-gray-100">
+            <table className="w-full">
+              <tbody className="divide-y divide-[#F1F5F9]">
                 {memberRows.map(m => (
-                  <tr key={m.user_id}>
-                    <td className="px-6 py-3 text-sm font-medium text-gray-900">{m.profile?.full_name ?? '—'}</td>
-                    <td className="px-6 py-3 text-sm text-gray-600 capitalize">{m.profile?.role ?? '—'}</td>
+                  <tr key={m.user_id} className="hover:bg-slate-50">
+                    <td className="px-6 py-3 text-[13px] font-semibold text-[#0F172A]">{m.profile?.full_name ?? '—'}</td>
+                    <td className="px-6 py-3 text-[13px] capitalize text-[#475569]">{m.profile?.role ?? '—'}</td>
                     <td className="px-6 py-3 text-right text-sm">
                       <GroupMemberRemoveButton groupId={group.id} userId={m.user_id} />
                     </td>
@@ -97,7 +99,7 @@ export default async function GroupDetailPage({
             </table>
           )}
           {group.is_active && (
-            <div className="border-t border-gray-100 p-4">
+            <div className="border-t border-[#F1F5F9] p-4">
               <GroupMemberAddForm groupId={group.id} availableUsers={availableUsers} />
             </div>
           )}
@@ -105,20 +107,20 @@ export default async function GroupDetailPage({
       </div>
 
       <div>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-500">Group Permissions</h2>
-        <p className="mb-3 text-sm text-gray-500">
+        <h2 className="mb-1 text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">Group Permissions</h2>
+        <p className="mb-3 text-[13px] text-[#475569]">
           Allow/Deny here overrides the Role default for every member — Deny wins if the member is
           also in another group that Allows the same permission. Not Set defers to the Role default.
         </p>
-        <div className="overflow-hidden rounded-xl bg-white ring-1 ring-gray-200">
+        <div className="overflow-hidden rounded-xl bg-white shadow-[0px_1px_1px_rgba(0,0,0,0.05)]">
           {permissionKeys.length === 0 ? (
-            <p className="p-6 text-sm text-gray-400">No permissions configured yet.</p>
+            <p className="p-6 text-sm text-[#94A3B8]">No permissions configured yet.</p>
           ) : (
-            <table className="min-w-full divide-y divide-gray-100">
-              <tbody className="divide-y divide-gray-100">
+            <table className="w-full">
+              <tbody className="divide-y divide-[#F1F5F9]">
                 {permissionKeys.map(key => (
-                  <tr key={key}>
-                    <td className="px-6 py-3 text-sm font-medium text-gray-900">{key}</td>
+                  <tr key={key} className="hover:bg-slate-50">
+                    <td className="px-6 py-3 text-[13px] font-semibold text-[#0F172A]">{key}</td>
                     <td className="px-6 py-3 text-right">
                       <GroupPermissionControl
                         groupId={group.id}

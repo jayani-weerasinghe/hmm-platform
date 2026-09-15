@@ -68,57 +68,59 @@ export default async function EffectivePermissionsPage({
   const backHref = user.role === 'champion' ? `/super-admin/champions/${userId}` : '/super-admin/champions'
 
   return (
-    <div>
-      <Link href={backHref} className="text-sm text-blue-600 hover:text-blue-800">
+    <div className="p-8 font-[family-name:var(--font-inter)]">
+      <Link href={backHref} className="text-[13px] font-semibold text-[#1E4BB8] hover:underline">
         ← Back to {user.role === 'champion' ? user.full_name : 'Champions'}
       </Link>
-      <h1 className="mt-3 text-2xl font-semibold text-gray-900">Effective Permissions</h1>
-      <p className="mt-1 text-sm text-gray-500">
+      <h1 className="mt-3 text-[22px] font-bold tracking-[-0.22px] text-[#0F172A] font-[family-name:var(--font-jakarta)]">
+        Effective Permissions
+      </h1>
+      <p className="mt-1 text-[13px] text-[#475569]">
         {user.full_name} · <span className="capitalize">{roleLabel(user.role)}</span>
-        {!user.is_active && <span className="ml-2 text-xs text-red-500">(inactive)</span>}
+        {!user.is_active && <span className="ml-2 text-[11px] text-[#DC2626]">(inactive)</span>}
       </p>
-      <p className="mt-4 max-w-2xl text-sm text-gray-500">
+      <p className="mt-4 max-w-2xl text-[13px] leading-5 text-[#475569]">
         For each permission below, the effective result and the layer that decided it —
         an Individual Exception always wins over a Group setting, which always wins over
         the Role Default.
       </p>
 
-      <div className="mt-6 overflow-hidden rounded-xl bg-white ring-1 ring-gray-200">
+      <div className="mt-6 overflow-hidden rounded-xl bg-white shadow-[0px_1px_1px_rgba(0,0,0,0.05)]">
         {error ? (
           <div className="p-12 text-center text-sm text-red-600">
             Could not resolve this user&apos;s permissions: {error.message}
           </div>
         ) : effectiveRows.length === 0 ? (
-          <div className="p-12 text-center text-sm text-gray-400">
+          <div className="p-12 text-center text-sm text-[#94A3B8]">
             No permissions apply to this user yet.
           </div>
         ) : (
-          <table className="min-w-full divide-y divide-gray-100">
+          <table className="w-full">
             <thead>
-              <tr className="bg-gray-50 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+              <tr className="border-b border-[#F1F5F9] bg-[#F8FAFC] text-left text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">
                 <th className="px-6 py-3">Permission</th>
                 <th className="px-6 py-3">Effective Result</th>
                 <th className="px-6 py-3">Layer</th>
                 <th className="px-6 py-3">Why</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-[#F1F5F9]">
               {effectiveRows.map(row => (
-                <tr key={row.permission}>
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900">{row.permission}</td>
+                <tr key={row.permission} className="hover:bg-slate-50">
+                  <td className="px-6 py-4 text-[13px] font-semibold text-[#0F172A]">{row.permission}</td>
                   <td className="px-6 py-4">
-                    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                    <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold tracking-[0.44px] ${
                       row.is_enabled ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
                     }`}>
                       {row.is_enabled ? 'Allow' : 'Deny'}
                     </span>
                   </td>
                   <td className="px-6 py-4">
-                    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${SOURCE_PILL[row.source]}`}>
+                    <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold tracking-[0.44px] ${SOURCE_PILL[row.source]}`}>
                       {SOURCE_LABEL[row.source]}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">{whyText(row, roleLabel(user.role))}</td>
+                  <td className="px-6 py-4 text-[13px] text-[#475569]">{whyText(row, roleLabel(user.role))}</td>
                 </tr>
               ))}
             </tbody>

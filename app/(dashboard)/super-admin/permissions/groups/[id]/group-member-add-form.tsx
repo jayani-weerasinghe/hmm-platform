@@ -13,7 +13,7 @@ export function GroupMemberAddForm({ groupId, availableUsers }: { groupId: strin
   const [isPending, startTransition] = useTransition()
 
   if (availableUsers.length === 0) {
-    return <p className="text-sm text-gray-400">All active Champions and Gatekeepers are already members.</p>
+    return <p className="text-sm text-[#94A3B8]">All active Champions and Gatekeepers are already members.</p>
   }
 
   return (
@@ -25,7 +25,7 @@ export function GroupMemberAddForm({ groupId, availableUsers }: { groupId: strin
       <select
         name="user_id"
         required
-        className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="h-10 flex-1 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
       >
         <option value="">Add a member…</option>
         {availableUsers.map(u => (
@@ -35,7 +35,7 @@ export function GroupMemberAddForm({ groupId, availableUsers }: { groupId: strin
       <button
         type="submit"
         disabled={isPending}
-        className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-400"
+        className="rounded-lg bg-[#F4AC1E] px-4 text-[13px] font-semibold text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
       >
         {isPending ? 'Adding…' : 'Add'}
       </button>
