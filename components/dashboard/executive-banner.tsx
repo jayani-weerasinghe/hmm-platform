@@ -31,7 +31,7 @@ export function ExecutiveBanner({ activeClubCount }: { activeClubCount: number }
             {'• '}<LoadedAgo />
           </span>
         </div>
-        <h1 className="mt-[10px] font-[family-name:var(--font-jakarta)] text-2xl font-extrabold tracking-[-0.6px] text-[#0F172A]">
+        <h1 className="mt-[10px] font-[family-name:var(--font-inter)] text-2xl font-extrabold tracking-[-0.6px] text-[#0F172A]">
           Executive Overview
         </h1>
         <p className="mt-2 font-[family-name:var(--font-inter)] text-[13px] text-[#475569]">

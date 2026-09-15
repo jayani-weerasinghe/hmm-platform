@@ -63,7 +63,7 @@ export default async function ResourcesPage({
     <div className="flex flex-col gap-6 p-8 font-[family-name:var(--font-inter)]">
       <div className="flex items-start justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <h1 className="text-[28px] font-bold tracking-[-0.7px] text-[#0F172A]">Learning Resources</h1>
+          <h1 className="text-[24px] font-bold tracking-[-0.7px] text-[#0F172A]">Learning Resources</h1>
           <p className="max-w-[768px] text-[14px] leading-5 text-[#475569]">
             Manage and share training guides, articles, and clinical resources across the platform for Champions and
             Gatekeepers.
