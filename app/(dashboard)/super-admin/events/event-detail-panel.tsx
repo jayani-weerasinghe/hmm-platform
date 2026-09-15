@@ -11,6 +11,17 @@ interface EventDetail {
   description: string | null
   max_participants: number | null
   club_name: string
+  facilitator: string | null
+  virtual_link: string | null
+}
+
+function Field({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">{label}</dt>
+      <dd className="mt-1 text-[14px] text-[#0F172A]">{value}</dd>
+    </div>
+  )
 }
 
 export function EventDetailPanel({ event, closeHref }: { event: EventDetail; closeHref: string }) {
@@ -22,51 +33,44 @@ export function EventDetailPanel({ event, closeHref }: { event: EventDetail; clo
     : starts.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(86,86,86,0.41)] p-4 backdrop-blur-sm font-[family-name:var(--font-inter)]">
       <Link href={closeHref} scroll={false} className="absolute inset-0" aria-label="Close" />
-      <div className="relative z-10 w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
+      <div className="relative z-10 w-full max-w-lg rounded-2xl bg-white p-6 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)]">
         <div className="mb-4 flex items-start justify-between">
-          <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${style.badge}`}>
+          <span
+            style={{ backgroundColor: style.pillBg, color: style.pillText }}
+            className="inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold tracking-[0.44px]"
+          >
             {style.label}
           </span>
           <Link
             href={closeHref}
             scroll={false}
-            className="rounded-full p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
             aria-label="Close"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-[#64748B] transition-colors hover:bg-[#F1F5F9]"
           >
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-            </svg>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/icons/x-close.svg" alt="" width={11.67} height={11.67} />
           </Link>
         </div>
 
-        <h2 className="text-xl font-semibold text-gray-900">{event.title}</h2>
+        <h2 className="text-[20px] font-bold text-[#0F172A] font-[family-name:var(--font-jakarta)]">{event.title}</h2>
 
-        <dl className="mt-4 space-y-3 text-sm">
-          <div>
-            <dt className="font-medium text-gray-500">Date &amp; Time</dt>
-            <dd className="mt-0.5 text-gray-900">{dateLabel} · {timeLabel}</dd>
-          </div>
-          <div>
-            <dt className="font-medium text-gray-500">Venue</dt>
-            <dd className="mt-0.5 text-gray-900">{event.venue}</dd>
-          </div>
-          <div>
-            <dt className="font-medium text-gray-500">Club</dt>
-            <dd className="mt-0.5 text-gray-900">{event.club_name}</dd>
-          </div>
-          <div>
-            <dt className="font-medium text-gray-500">Maximum Participants</dt>
-            <dd className="mt-0.5 text-gray-900">{event.max_participants ?? 'Not specified'}</dd>
-          </div>
-          {event.description && (
-            <div>
-              <dt className="font-medium text-gray-500">Description</dt>
-              <dd className="mt-0.5 whitespace-pre-wrap text-gray-900">{event.description}</dd>
-            </div>
-          )}
+        <dl className="mt-5 grid grid-cols-2 gap-4">
+          <Field label="Date & Time" value={`${dateLabel} · ${timeLabel}`} />
+          <Field label="Venue" value={event.venue} />
+          <Field label="Club" value={event.club_name} />
+          <Field label="Facilitator" value={event.facilitator ?? 'Not specified'} />
+          <Field label="Maximum Participants" value={event.max_participants ? String(event.max_participants) : 'Not specified'} />
+          {event.virtual_link && <Field label="Link" value={event.virtual_link} />}
         </dl>
+
+        {event.description && (
+          <div className="mt-4">
+            <dt className="text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">Description</dt>
+            <dd className="mt-1 whitespace-pre-wrap text-[14px] leading-5 text-[#0F172A]">{event.description}</dd>
+          </div>
+        )}
       </div>
     </div>
   )
