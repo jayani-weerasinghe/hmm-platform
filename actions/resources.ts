@@ -10,7 +10,7 @@ const BUCKET = 'resources'
 const RESOURCE_TYPES = ['video', 'article', 'document', 'other'] as const
 type ResourceType = (typeof RESOURCE_TYPES)[number]
 
-export type ResourceActionState = { error?: string } | null
+export type ResourceActionState = { error?: string; success?: boolean } | null
 
 function isExternalUrl(value: string) {
   return /^https?:\/\//i.test(value)
@@ -71,6 +71,11 @@ export async function createResourceAction(
   formData: FormData
 ): Promise<ResourceActionState> {
   const fields = readCommonFields(formData)
+  // The Create New Resource modal (Figma node 54:17908) has no publication-date
+  // field — default to today, same as the real moment of creation/publication.
+  // The older full-page create form still sends an explicit date, which wins.
+  if (!fields.publicationDate) fields.publicationDate = new Date().toISOString().slice(0, 10)
+
   const validationError = validate(fields)
   if (validationError) return { error: validationError }
 
@@ -89,6 +94,19 @@ export async function createResourceAction(
     }
   }
 
+  // "intent" is set by whichever footer button submitted the form (Save as
+  // Draft vs. Publish Resource) — absent on the older full-page form, which
+  // always publishes immediately, matching its pre-existing behavior.
+  const intent = formData.get('intent') as string | null
+  const status = intent === 'draft' ? 'draft' : 'published'
+  const visibleToChampions  = formData.get('visible_to_champions')  ? true : false
+  const visibleToGatekeepers = formData.get('visible_to_gatekeepers') ? true : false
+  const estimatedCompletion = (formData.get('estimated_completion') as string | null)?.trim() || null
+  // The audience checkboxes only exist in the new modal — when absent (the
+  // older full-page form), default both to true so behavior for that path is
+  // unchanged from before these columns existed.
+  const hasAudienceFields = formData.has('visible_to_champions') || formData.has('visible_to_gatekeepers') || formData.has('intent')
+
   const { data: resource, error } = await supabase
     .from('resources')
     .insert({
@@ -100,6 +118,10 @@ export async function createResourceAction(
       content_url: contentUrl,
       content_text: fields.type === 'article' ? fields.contentText : null,
       created_by: user.id,
+      status,
+      estimated_completion: estimatedCompletion,
+      visible_to_champions: hasAudienceFields ? visibleToChampions : true,
+      visible_to_gatekeepers: hasAudienceFields ? visibleToGatekeepers : true,
     })
     .select('id')
     .single()
@@ -114,11 +136,18 @@ export async function createResourceAction(
     action: 'resource.created',
     entityType: 'resource',
     entityId: resource.id,
-    details: { title: fields.title, type: fields.type },
+    details: { title: fields.title, type: fields.type, status },
   })
 
   revalidatePath('/super-admin/resources')
-  redirect('/super-admin/resources')
+
+  // No redirect() here: this action is invoked from inside the Create New
+  // Resource modal (an intercepted route). redirect() from within a server
+  // action called from an intercepted route can leave the @modal slot stuck
+  // open even though the URL changes underneath it — same bug and fix as
+  // the Champions create/edit modals. The form closes itself client-side on
+  // success instead (see create-resource-form.tsx).
+  return { success: true }
 }
 
 export async function updateResourceAction(

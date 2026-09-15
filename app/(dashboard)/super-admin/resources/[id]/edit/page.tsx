@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { ResourceForm } from '../../resource-form'
+import { EditResourceForm } from '../../resource-form'
 
 export default async function EditResourcePage({
   params,
@@ -18,5 +18,5 @@ export default async function EditResourcePage({
 
   if (!resource) notFound()
 
-  return <ResourceForm resource={resource} />
+  return <EditResourceForm resource={resource} />
 }

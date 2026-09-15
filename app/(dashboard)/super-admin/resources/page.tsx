@@ -1,11 +1,10 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { ResourceFilters } from './resource-filters'
-import { ResourceSection } from './resource-section'
-import { StatTile } from './stat-tile'
-import { archivo, manrope } from './fonts'
-import { colors, RESOURCE_TYPE_LABEL } from './design-tokens'
-import type { ResourceCardData } from './resource-card'
+import { ResourceTypeTabs } from './resource-type-tabs'
+import { ResourceRow, type ResourceRowData } from './resource-row'
+
+export const metadata = { title: 'Resources — HMM Super Admin' }
 
 function isExternalUrl(value: string) {
   return /^https?:\/\//i.test(value)
@@ -14,26 +13,28 @@ function isExternalUrl(value: string) {
 export default async function ResourcesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; type?: string }>
+  searchParams: Promise<{ q?: string; category?: string; sort?: string; type?: string }>
 }) {
-  const { q, type } = await searchParams
+  const { q, category, sort, type } = await searchParams
   const supabase = await createClient()
 
   let query = supabase
     .from('resources')
-    .select('id, title, description, type, category, publication_date, content_url, content_text')
-    .order('publication_date', { ascending: false })
+    .select('id, title, description, type, category, publication_date, content_url, content_text, status')
+    .order('publication_date', { ascending: sort === 'oldest' })
 
   if (q) query = query.ilike('title', `%${q}%`)
+  if (category) query = query.eq('category', category)
   if (type) query = query.eq('type', type)
 
   const [{ data: resources }, { data: allForStats }] = await Promise.all([
     query,
-    supabase.from('resources').select('type, publication_date'),
+    supabase.from('resources').select('type, category'),
   ])
 
-  const withLinks: ResourceCardData[] = await Promise.all(
-    (resources ?? []).map(async (r) => {
+  const resourceList = resources ?? []
+  const withLinks: ResourceRowData[] = await Promise.all(
+    resourceList.map(async (r) => {
       let link: string | null = null
       if (r.content_url) {
         if (isExternalUrl(r.content_url)) {
@@ -43,101 +44,62 @@ export default async function ResourcesPage({
           link = data?.signedUrl ?? null
         }
       }
-      return { id: r.id, title: r.title, description: r.description, type: r.type, category: r.category, publication_date: r.publication_date, content_url: r.content_url, link }
+      return { id: r.id, title: r.title, description: r.description, type: r.type, category: r.category, publication_date: r.publication_date, content_url: r.content_url, status: r.status, link }
     })
   )
 
-  // ── Stats (always reflect the full dataset, independent of the filters below) ──
+  // ── Real stats, always computed from the full dataset (independent of the
+  // current filters) — drives the type-tabs' counts and the category select's
+  // options, same "unfiltered baseline" pattern the old stat tiles used.
   const all = allForStats ?? []
-  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10)
-  const publishedThisMonth = all.filter(r => r.publication_date >= monthStart).length
-  const byType: Record<string, number> = {}
-  for (const r of all) byType[r.type] = (byType[r.type] ?? 0) + 1
+  const typeCounts: Record<string, number> = {}
+  for (const r of all) typeCounts[r.type] = (typeCounts[r.type] ?? 0) + 1
 
-  // ── Group the (filtered) list by category for section rendering ──
-  const groups = new Map<string, ResourceCardData[]>()
-  for (const r of withLinks) {
-    const key = r.category?.trim() || 'Uncategorized'
-    groups.set(key, [...(groups.get(key) ?? []), r])
-  }
-  const sortedGroups = Array.from(groups.entries()).sort(([a], [b]) => {
-    if (a === 'Uncategorized') return 1
-    if (b === 'Uncategorized') return -1
-    return a.localeCompare(b)
-  })
+  const categories = Array.from(
+    new Set(all.map(r => r.category?.trim()).filter((c): c is string => !!c))
+  ).sort()
 
   return (
-    <div className="p-8">
-      <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
-        <div className="flex flex-wrap gap-3">
-          <StatTile label="Total Resources" value={all.length} />
-          <StatTile label="Published This Month" value={publishedThisMonth} subColor={colors.delta} />
-          <div className="rounded-2xl bg-white" style={{ border: `1px solid ${colors.border}`, padding: '16px 18px' }}>
-            <span className={`${manrope.className} block text-[11px] font-semibold uppercase`} style={{ color: colors.labelMuted, letterSpacing: '1.54px' }}>
-              By Type
-            </span>
-            <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
-              {Object.entries(byType).length === 0 ? (
-                <span className={`${archivo.className} text-[26px] font-extrabold`} style={{ color: colors.navy }}>0</span>
-              ) : (
-                Object.entries(byType).map(([t, count]) => (
-                  <span key={t} className={`${manrope.className} text-[13px] font-semibold`} style={{ color: colors.navy }}>
-                    {count} <span style={{ color: colors.meta }}>{RESOURCE_TYPE_LABEL[t] ?? t}</span>
-                  </span>
-                ))
-              )}
-            </div>
-          </div>
+    <div className="flex flex-col gap-6 p-8 font-[family-name:var(--font-inter)]">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-[28px] font-bold tracking-[-0.7px] text-[#0F172A]">Learning Resources</h1>
+          <p className="max-w-[768px] text-[14px] leading-5 text-[#475569]">
+            Manage and share training guides, articles, and clinical resources across the platform for Champions and
+            Gatekeepers.
+          </p>
         </div>
-
         <Link
           href="/super-admin/resources/new"
-          className={`${archivo.className} flex-shrink-0 rounded-[11px] text-[13.5px] font-extrabold`}
-          style={{
-            backgroundColor: colors.amber,
-            color: colors.navy,
-            padding: '0 22px',
-            height: '46px',
-            display: 'inline-flex',
-            alignItems: 'center',
-            letterSpacing: '0.135px',
-            boxShadow: `0 10px 22px -12px ${colors.amberShadow}`,
-          }}
+          className="flex flex-shrink-0 items-center gap-2 rounded-lg bg-[#F4AC1E] px-6 py-2.5 text-[12px] font-semibold tracking-[0.24px] text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F]"
         >
-          + Add Resource
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/icons/plus-small.svg" alt="" width={10.5} height={10.5} />
+          Add Resource
         </Link>
       </div>
 
-      <div className="mb-5">
-        <ResourceFilters q={q} type={type} />
+      <div className="flex flex-col gap-4 rounded-xl bg-white p-4 shadow-[0px_1px_1px_rgba(0,0,0,0.05)]">
+        <ResourceFilters q={q} category={category} sort={sort} type={type} categories={categories} />
+        <div className="border-t border-[#F1F5F9] pt-2">
+          <ResourceTypeTabs active={type} counts={typeCounts} total={all.length} q={q} category={category} sort={sort} />
+        </div>
       </div>
 
-      {sortedGroups.length === 0 ? (
-        <div className="rounded-[18px] bg-white p-12 text-center" style={{ border: `1px solid ${colors.border}` }}>
-          <p className={`${manrope.className} text-sm`} style={{ color: colors.description }}>
-            {q || type ? 'No resources match your filters.' : 'No resources yet.'}
+      {withLinks.length === 0 ? (
+        <div className="rounded-xl bg-white p-12 text-center shadow-[0px_1px_1px_rgba(0,0,0,0.05)]">
+          <p className="text-sm text-[#64748B]">
+            {q || category || type ? 'No resources match your filters.' : 'No resources yet.'}
           </p>
-          {!q && !type && (
-            <Link href="/super-admin/resources/new" className={`${manrope.className} mt-2 inline-block text-sm font-bold`} style={{ color: colors.link }}>
+          {!q && !category && !type && (
+            <Link href="/super-admin/resources/new" className="mt-2 inline-block text-sm font-bold text-[#003495]">
               Add your first resource →
             </Link>
           )}
         </div>
       ) : (
-        <div className="space-y-5">
-          {sortedGroups.map(([category, items]) => {
-            const mostRecent = items.reduce((max, r) => r.publication_date > max ? r.publication_date : max, items[0].publication_date)
-            const mostRecentLabel = new Date(mostRecent).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
-            return (
-              <ResourceSection
-                key={category}
-                title={category}
-                subtitle={`${items.length} resource${items.length === 1 ? '' : 's'} · last added ${mostRecentLabel}`}
-                category={category === 'Uncategorized' ? undefined : category}
-                resources={items}
-              />
-            )
-          })}
+        <div className="flex flex-col gap-4">
+          {withLinks.map(r => <ResourceRow key={r.id} resource={r} />)}
         </div>
       )}
     </div>
