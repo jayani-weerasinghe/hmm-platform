@@ -1133,14 +1133,145 @@ Admin-side directory/CRUD screen built anyway, at `/super-admin/gatekeepers`.
   live post-refactor (opened, confirmed identical rendering, cancelled
   without submitting — it's the real admin's own account, not a test one).
 
+## Champion Web Portal — built 2026-09-16, branch `feature/champion-web-portal`
+
+The "Not started yet" note below had stood since Sprint 1 ("BLOCKED until
+Champion user stories are written by the BA") — that blocker never actually
+lifted (no separate Champion user-stories doc exists), but the user
+explicitly asked to build the Champion Web Portal directly from the
+**Initial Requirement Document**'s "Champion Features" section and
+`Phase1 Feature Checklist.md` §2, using the Figma node at `118:30465` as the
+design source. Built section by section, same rigor as every Super Admin
+epic this session: reuse existing shared components, verify every RLS
+scoping claim directly, exclude any Figma content with no real schema
+backing, and end-to-end test each section with seeded throwaway data before
+cleanup.
+
+**Pre-build scoping** (full findings in this session's transcript): the
+Figma "Champions" canvas contains 7 screens (sign-in, dashboard, gatekeeper
+directory, resources, announcements, events, profile) — all clearly
+produced by copy-pasting the Super Admin mockups and reskinning copy,
+**without** re-applying this project's own no-fabrication decisions or
+correcting scope down to a single club. Concretely rejected before building
+anything: a fabricated onboarding funnel state machine, satisfaction/
+attendance percentages, seat-capacity/registration counts, "peer
+verification" and monthly "goal" figures, "Live Sync Active" and
+Auto-sync-with-Outlook/GCal badges, a "Mobile App Status" column (no
+Gatekeeper app exists), and a multi-club Gatekeeper directory view (a
+Champion manages exactly one club). The sign-in screen itself was a full
+decoy — the app already has one shared, tested login page for both roles.
+
+**Schema fix required before building anything**: Champions already had
+read+insert RLS on their own club's Gatekeepers but no UPDATE policy at
+all, which would have silently blocked edit/deactivate/reactivate. Added
+migration `20260916000000_add_champion_gatekeeper_update_policy.sql`
+(`profiles: champion update own club gatekeeper`, scoped identically to the
+existing insert policy — both USING and WITH CHECK require
+`role='gatekeeper' AND club_id=current_user_club_id()`, so a Champion can
+never move a Gatekeeper to a different club).
+
+- **Dashboard** (`/champion`) — KPI tiles (active/inactive/new-this-month
+  Gatekeepers, QPR certified %), an active-vs-inactive donut, a QPR
+  certification breakdown bar, a 6-month onboarding trend chart, an
+  "Onboarding Status" widget, and upcoming/recently-completed club events.
+  The "added but not yet logged in" requirement (Gatekeeper dashboard
+  element 5) is genuinely real, not fabricated, despite no Gatekeeper
+  mobile app existing yet: it reads Supabase Auth's own `last_sign_in_at`
+  (set on any invited user's first real authentication) via the admin
+  client, so it will already be accurate the moment a Gatekeeper app ships.
+- **Gatekeeper Management** (`/champion/gatekeepers`) — full CRUD (list,
+  create single + bulk CSV, edit, deactivate/reactivate), scoped to the
+  Champion's own club with no club picker anywhere. Deactivate/reactivate
+  reuse the exact shared `DeactivationControls` component and
+  `ReactivateGatekeeperForm` built for the Super Admin side (not
+  duplicated). **Real security gap found and fixed**: `createGatekeeperAction`
+  / `createGatekeepersBulkAction` (`actions/gatekeepers.ts`) use the
+  service-role admin client, which bypasses RLS — before this fix, *any*
+  authenticated caller (not just Super Admin) could submit an arbitrary
+  `club_id` with zero server-side check, since no role guard existed on
+  this action at all. Added `resolveScopedClubId()`: a Champion caller's
+  `club_id` is now always forced server-side to their own club regardless
+  of what's submitted; a Super Admin's behavior is unchanged; any other
+  role is rejected outright.
+- **Events & Calendar** (`/champion/events`) — the same shared
+  platform-wide calendar as Super Admin (Month/Week/Agenda), reusing
+  `EventsCalendar`/`EventDetailPanel`/`CreateEventForm` directly
+  (parameterized with `basePath`/`lockedClub`/`manageClubId` props) rather
+  than a second ~700-line implementation. **New capability that didn't
+  exist for either role before**: Edit and Cancel an event, scoped to the
+  Champion's own club only — added `updateEventAction`/`cancelEventAction`
+  to `actions/events.ts`, both using the regular authenticated client so
+  the pre-existing `events: champion update club events` RLS policy is
+  what actually enforces scoping. **Bug found while testing**:
+  `updateEventAction` initially reused `createEventAction`'s `validate()`
+  as-is, which requires `club_id` — but the edit form never submits one
+  (club is shown read-only), so every edit failed with "Assigned club is
+  required." Fixed with a `requireClub` flag on `validate()` rather than
+  faking a hidden `club_id` input just to satisfy it.
+- **Announcements** (`/champion/announcements`) — title/body/publish-date/
+  expiry-date only, matching the requirement's literal scope (no audience/
+  priority/draft pickers — Super-Admin-only concepts). **Real scoping gap
+  found and fixed**: the Champion insert/update RLS policies require
+  `club_id` = the caller's own club on *every* row, but
+  `createAnnouncementAction`/`updateAnnouncementAction` only set `club_id`
+  when `audience === 'specific_clubs'` — so a Champion's insert would have
+  been rejected by RLS outright for any other (Super-Admin-only) audience
+  value. Added `resolveAnnouncementScope()`: forces
+  `audience='specific_clubs'` + `club_id`=own club whenever the caller is a
+  Champion (an honest description, not a fabricated one — the row really
+  is single-club), regardless of what the Champion-only form submits (it
+  exposes no audience/club picker at all). **Bug found while testing**: the
+  edit form's date inputs rendered empty instead of pre-filling —
+  `publish_date`/`expiry_date` are TIMESTAMPTZ columns
+  (`"2026-09-16T00:00:00+00:00"`), and a native date input's `defaultValue`
+  only matches an exact `YYYY-MM-DD` string. Fixed with the same
+  `toDateInputValue()` slice(0,10) helper already used on the Super Admin
+  side — this class of bug fails silently (empty field, no error), so it's
+  easy to miss without actually clicking into the edit form live.
+- **Resources** (`/champion/resources`) — read-only browse/preview/
+  download of Super-Admin-published resources, platform-wide (not
+  club-scoped, per the requirement doc), reusing `ResourceFilters`/
+  `ResourceTypeTabs`/`ResourceRow` directly. Added an explicit
+  `.eq('status', 'published')` filter on top of RLS as defense-in-depth —
+  the `resources: champion read published` policy only checks
+  `publication_date <= today`, not `status`, so a still-in-progress draft
+  with a past publication date would otherwise be readable.
+- **Profile** (`/champion/profile`) — view/update personal details, change
+  password, view role/access level. `ProfileForm` and `ChangePasswordForm`
+  were already fully role-agnostic and needed zero changes beyond a new
+  `profilePath` prop on the latter (defaults to the Super Admin route, so
+  that call site is unaffected). The "Role & Access" card shows a **real**,
+  live-resolved list of enabled permissions via
+  `list_effective_permissions(auth.uid())` + `permission_catalog` labels —
+  not a hardcoded capability list like the Super Admin profile's equivalent
+  card — reusing the Epic 9 resolution engine's own self-view guard.
+
+**Shared-component changes made to support both roles** (all verified with
+a live regression pass afterward — Super Admin behavior unchanged in every
+case): `EventsCalendar`/`EventDetailPanel`/`CreateEventForm` gained
+`basePath`/`newEventHref`/`manageClubId`/`lockedClub`/`fallbackPath` props;
+`AnnouncementCard` gained `basePath`/`canManage`; `ResourceRow`/
+`ResourceTypeTabs` gained `basePath`/`canManage`; `ChangePasswordForm`
+gained `profilePath`. Also fixed a real pre-existing bug found along the
+way: the shared dashboard layout's "My Profile" link was hardcoded to
+`/super-admin/profile` for every role (a Champion clicking it was silently
+bounced to their own dashboard by middleware) — `ProfileMenu` now takes a
+`profileHref` prop, set per-role at the call site.
+
+**Verification discipline**: every section was tested end-to-end with a
+dedicated throwaway test club (`ZZ Test Champion Portal Club`), one
+throwaway Champion account, and 3–4 throwaway Gatekeepers/events/
+announcements covering the certified/expiring/inactive and own-club/
+other-club permission boundaries — created via the Auth Admin API and
+direct table inserts, confirmed via direct DB queries after every mutating
+action (not just UI appearance), and fully deleted (including cascaded
+`audit_logs` rows) at the end, reconfirmed back to a clean baseline via
+direct DB query.
+
 ### Not started yet
-- Everything on the Champion side (Gatekeeper management, Champion
-  dashboard, events, announcements, resource access) — BLOCKED until
-  Champion user stories are written by the BA. **Exception**: a Super
-  Admin-side Gatekeepers directory/CRUD screen now exists (see above) —
-  this bullet still accurately describes the Champion side, which remains
-  fully blocked.
 - Everything on the Gatekeeper mobile app — BLOCKED until Gatekeeper user
   stories exist, and until the web app's core features are further along.
+  (The Champion Web Portal above is now fully built — this bullet no
+  longer covers the Champion side.)
 - Recommended extras (push notifications, attendance tracking, announcement
   read tracking, audit log UI, mood tracker) — deferred, time-permitting.
