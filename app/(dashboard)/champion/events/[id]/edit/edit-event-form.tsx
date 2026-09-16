@@ -2,8 +2,8 @@
 
 import { useActionState, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createEventAction } from '@/actions/events'
-import { EVENT_TYPE_STYLES } from './event-type'
+import { updateEventAction } from '@/actions/events'
+import { EVENT_TYPE_STYLES } from '@/app/(dashboard)/super-admin/events/event-type'
 
 const TYPE_OPTIONS = [
   { value: 'qpr_session', label: 'QPR Session', caption: 'Certification & credits', dot: EVENT_TYPE_STYLES.qpr_session.dot },
@@ -12,25 +12,34 @@ const TYPE_OPTIONS = [
   { value: 'other', label: 'Other', caption: 'Anything else', dot: EVENT_TYPE_STYLES.other.dot },
 ]
 
-function todayInputValue() {
-  return new Date().toISOString().slice(0, 10)
+interface EventValues {
+  id: string
+  title: string
+  type: string
+  event_date: string
+  start_time: string
+  end_time: string
+  venue: string
+  facilitator: string
+  virtual_link: string
+  max_participants: string
+  description: string
+  club_name: string
 }
 
-export function CreateEventForm({
-  clubs,
-  lockedClub,
-  fallbackPath = '/super-admin/events',
+export function EditEventForm({
+  event,
+  fallbackPath = '/champion/events',
   onClose,
 }: {
-  clubs: { id: string; name: string }[]
-  lockedClub?: { id: string; name: string }
+  event: EventValues
   fallbackPath?: string
   onClose?: () => void
 }) {
   const router = useRouter()
   const close = onClose ?? (() => router.push(fallbackPath))
-  const [state, formAction, isPending] = useActionState(createEventAction, null)
-  const [type, setType] = useState('qpr_session')
+  const [state, formAction, isPending] = useActionState(updateEventAction, null)
+  const [type, setType] = useState(event.type)
 
   useEffect(() => {
     if (state?.success) close()
@@ -39,13 +48,10 @@ export function CreateEventForm({
 
   return (
     <div className="mx-auto flex max-h-[90vh] w-full max-w-[672px] flex-col overflow-hidden rounded-2xl bg-white shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)] font-[family-name:var(--font-inter)]">
-      {/* Header */}
       <div className="flex items-start justify-between gap-4 px-6 pb-4 pt-6">
         <div className="flex flex-col gap-[3px]">
-          <h1 className="text-[18px] font-bold leading-6 text-[#0F172A]">Schedule New Event</h1>
-          <p className="max-w-[480px] text-[12px] leading-4 text-[#64748B]">
-            Create a training cohort, awareness program, or wellness workshop.
-          </p>
+          <h1 className="text-[18px] font-bold leading-6 text-[#0F172A]">Edit Event</h1>
+          <p className="max-w-[480px] text-[12px] leading-4 text-[#64748B]">Update this event&apos;s details.</p>
         </div>
         <button
           type="button"
@@ -59,13 +65,12 @@ export function CreateEventForm({
       </div>
 
       <form action={formAction} className="flex flex-1 flex-col overflow-hidden">
+        <input type="hidden" name="event_id" value={event.id} />
         <input type="hidden" name="type" value={type} />
 
         <div className="flex flex-1 flex-col gap-4 overflow-y-auto bg-[#F8FAFC] p-6">
           {state?.error && (
-            <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">
-              {state.error}
-            </div>
+            <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">{state.error}</div>
           )}
 
           <div className="flex flex-col gap-4 rounded-xl bg-white p-5">
@@ -74,13 +79,8 @@ export function CreateEventForm({
                 Event Title <span className="text-[#DC2626]">*</span>
               </label>
               <input
-                id="title"
-                name="title"
-                type="text"
-                required
-                autoComplete="off"
-                placeholder="e.g., QPR Gatekeeper Certification — Cohort #5"
-                className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
+                id="title" name="title" type="text" required autoComplete="off" defaultValue={event.title}
+                className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
               />
             </div>
 
@@ -112,11 +112,7 @@ export function CreateEventForm({
                   Event Date <span className="text-[#DC2626]">*</span>
                 </label>
                 <input
-                  id="event_date"
-                  name="event_date"
-                  type="date"
-                  required
-                  defaultValue={todayInputValue()}
+                  id="event_date" name="event_date" type="date" required defaultValue={event.event_date}
                   className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                 />
               </div>
@@ -125,10 +121,7 @@ export function CreateEventForm({
                   Start Time <span className="text-[#DC2626]">*</span>
                 </label>
                 <input
-                  id="start_time"
-                  name="start_time"
-                  type="time"
-                  required
+                  id="start_time" name="start_time" type="time" required defaultValue={event.start_time}
                   className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                 />
               </div>
@@ -137,9 +130,7 @@ export function CreateEventForm({
                   End Time
                 </label>
                 <input
-                  id="end_time"
-                  name="end_time"
-                  type="time"
+                  id="end_time" name="end_time" type="time" defaultValue={event.end_time}
                   className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                 />
               </div>
@@ -147,46 +138,18 @@ export function CreateEventForm({
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label htmlFor="club_id" className="mb-1.5 block text-[13px] font-medium tracking-[0.24px] text-[#0F172A]">
-                  Assigned Club <span className="text-[#DC2626]">*</span>
-                </label>
-                {lockedClub ? (
-                  <>
-                    <input type="hidden" name="club_id" value={lockedClub.id} />
-                    <div className="flex h-10 items-center gap-2 rounded-lg border border-[#E2E8F0] bg-[#EFF4FF] px-3.5">
-                      <span className="text-sm font-semibold text-[#0F172A]">{lockedClub.name}</span>
-                      <span className="ml-auto text-[11px] text-[#64748B]">Your club</span>
-                    </div>
-                  </>
-                ) : (
-                  <div className="relative">
-                    <select
-                      id="club_id"
-                      name="club_id"
-                      required
-                      defaultValue=""
-                      className="h-10 w-full appearance-none rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 pr-9 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
-                    >
-                      <option value="" disabled>Select an active club…</option>
-                      {clubs.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src="/icons/chevron-down.svg" alt="" className="pointer-events-none absolute right-3.5 top-1/2 h-[6px] w-[9px] -translate-y-1/2" />
-                  </div>
-                )}
+                <label className="mb-1.5 block text-[13px] font-medium tracking-[0.24px] text-[#0F172A]">Assigned Club</label>
+                <div className="flex h-10 items-center rounded-lg border border-[#E2E8F0] bg-[#EFF4FF] px-3.5 text-sm font-semibold text-[#0F172A]">
+                  {event.club_name}
+                </div>
               </div>
               <div>
                 <label htmlFor="facilitator" className="mb-1.5 block text-[13px] font-medium tracking-[0.24px] text-[#0F172A]">
                   Primary Facilitator <span className="text-[#DC2626]">*</span>
                 </label>
                 <input
-                  id="facilitator"
-                  name="facilitator"
-                  type="text"
-                  required
-                  autoComplete="off"
-                  placeholder="e.g., Dr. Elena Vance"
-                  className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
+                  id="facilitator" name="facilitator" type="text" required autoComplete="off" defaultValue={event.facilitator}
+                  className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                 />
               </div>
             </div>
@@ -196,13 +159,8 @@ export function CreateEventForm({
                 Venue / Location <span className="text-[#DC2626]">*</span>
               </label>
               <input
-                id="venue"
-                name="venue"
-                type="text"
-                required
-                autoComplete="off"
-                placeholder="e.g., North Ridge Annex Rm 204"
-                className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
+                id="venue" name="venue" type="text" required autoComplete="off" defaultValue={event.venue}
+                className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
               />
             </div>
 
@@ -212,12 +170,8 @@ export function CreateEventForm({
                   Link
                 </label>
                 <input
-                  id="virtual_link"
-                  name="virtual_link"
-                  type="text"
-                  autoComplete="off"
-                  placeholder="e.g., Zoom #842-109"
-                  className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
+                  id="virtual_link" name="virtual_link" type="text" autoComplete="off" defaultValue={event.virtual_link}
+                  className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                 />
               </div>
               <div>
@@ -225,13 +179,8 @@ export function CreateEventForm({
                   Maximum Participants
                 </label>
                 <input
-                  id="max_participants"
-                  name="max_participants"
-                  type="number"
-                  min={1}
-                  autoComplete="off"
-                  placeholder="Optional"
-                  className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
+                  id="max_participants" name="max_participants" type="number" min={1} autoComplete="off" defaultValue={event.max_participants}
+                  className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                 />
               </div>
             </div>
@@ -241,33 +190,23 @@ export function CreateEventForm({
                 Description &amp; Objectives
               </label>
               <textarea
-                id="description"
-                name="description"
-                rows={3}
-                placeholder="Evidence-based suicide prevention gatekeeper training covering question, persuade, and refer techniques…"
-                className="w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 py-2.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
+                id="description" name="description" rows={3} defaultValue={event.description}
+                className="w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 py-2.5 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
               />
             </div>
           </div>
         </div>
 
-        {/* Footer */}
         <div className="flex items-center justify-end gap-2.5 border-t border-[#E2E8F0] px-6 py-4">
-          <button
-            type="button"
-            onClick={close}
-            className="flex h-10 items-center rounded-lg bg-[#F1F5F9] px-4 text-[13px] font-medium text-[#0F172A] transition-colors hover:bg-[#E2E8F0]"
-          >
+          <button type="button" onClick={close} className="flex h-10 items-center rounded-lg bg-[#F1F5F9] px-4 text-[13px] font-medium text-[#0F172A] transition-colors hover:bg-[#E2E8F0]">
             Cancel
           </button>
           <button
-            type="submit"
-            disabled={isPending}
-            className="flex h-10 items-center gap-1.5 rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
+            type="submit" disabled={isPending}
+            className="flex h-10 items-center gap-2 rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/icons/publish-send.svg" alt="" width={11.5} height={8.5} />
-            {isPending ? 'Scheduling…' : 'Schedule Event'}
+            {!isPending && <img src="/icons/check.svg" alt="" width={11.55} height={8.52} />}
+            {isPending ? 'Saving…' : 'Save Changes'}
           </button>
         </div>
       </form>
