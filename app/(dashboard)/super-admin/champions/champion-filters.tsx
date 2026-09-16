@@ -66,16 +66,6 @@ export function ChampionFilters({
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
         </select>
-        <button
-          type="button"
-          onClick={() => router.refresh()}
-          aria-label="Refresh champion list"
-          title="Refresh"
-          className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg text-[#64748B] transition-colors hover:bg-gray-100"
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/icons/refresh.svg" alt="" width={13.333} height={15.375} />
-        </button>
       </div>
     </div>
   )

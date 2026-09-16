@@ -41,7 +41,7 @@ export function AnnouncementStatusTabs({
             key={tab.label}
             href={buildHref({ q, audience, status: tab.value })}
             className={`flex items-center justify-center whitespace-nowrap rounded-[5px] px-4 py-1.5 text-[12px] font-semibold tracking-[0.24px] transition-colors ${
-              isActive ? 'bg-white text-[#0F172A] shadow-sm' : 'text-[#475569] hover:bg-white/60'
+              isActive ? 'bg-[#022C51] text-white' : 'text-[#475569] hover:bg-white/60'
             }`}
           >
             {tab.label}

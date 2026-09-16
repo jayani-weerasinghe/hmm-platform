@@ -1,14 +1,8 @@
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { AnnouncementForm } from '../../announcement-form'
+import { EditAnnouncementModal } from './edit-announcement-modal'
 
-export const metadata = { title: 'Edit Announcement — HMM Super Admin' }
-
-export default async function EditAnnouncementPage({
-  params,
-}: {
-  params: Promise<{ id: string }>
-}) {
+export default async function InterceptedEditAnnouncementPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = await createClient()
 
@@ -23,9 +17,5 @@ export default async function EditAnnouncementPage({
 
   if (!announcement) notFound()
 
-  return (
-    <div className="flex justify-center p-8">
-      <AnnouncementForm announcement={announcement} clubs={clubs ?? []} />
-    </div>
-  )
+  return <EditAnnouncementModal announcement={announcement} clubs={clubs ?? []} />
 }

@@ -82,7 +82,7 @@ function FileDropZone() {
       <p className="text-[12px] font-semibold tracking-[0.24px] text-[#0F172A]">
         {fileName ?? 'Or drag & drop source file'}
       </p>
-      <p className="text-[12px] text-[#64748B]">Supports MP4, PDF, DOCX (Max 100MB)</p>
+      <p className="text-[12px] text-[#64748B]">Supports MP4, PDF, DOCX (Max 50MB)</p>
     </div>
   )
 }

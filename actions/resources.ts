@@ -10,6 +10,11 @@ const BUCKET = 'resources'
 const RESOURCE_TYPES = ['video', 'article', 'document', 'other'] as const
 type ResourceType = (typeof RESOURCE_TYPES)[number]
 
+// Matches this Supabase project's actual configured Storage file size limit
+// (confirmed via the Management API's /config/storage endpoint) — a hard
+// platform ceiling, not something raisable from application code alone.
+const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024
+
 export type ResourceActionState = { error?: string; success?: boolean } | null
 
 function isExternalUrl(value: string) {
@@ -56,6 +61,10 @@ function validate({
   if (!publicationDate) return 'Publication date is required.'
 
   const hasFile = !!(file && file.size > 0)
+
+  if (hasFile && file!.size > MAX_FILE_SIZE_BYTES) {
+    return `File is too large (${(file!.size / (1024 * 1024)).toFixed(1)}MB). Maximum allowed is 50MB.`
+  }
 
   if (type === 'article') {
     if (!contentText && !contentUrl) return 'Provide article content or an external link.'
@@ -216,7 +225,7 @@ export async function updateResourceAction(
   })
 
   revalidatePath('/super-admin/resources')
-  redirect('/super-admin/resources')
+  return { success: true }
 }
 
 export async function deleteResourceAction(formData: FormData) {

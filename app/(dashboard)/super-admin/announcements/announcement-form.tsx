@@ -1,7 +1,7 @@
 'use client'
 
-import { useActionState, useState } from 'react'
-import Link from 'next/link'
+import { useActionState, useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { updateAnnouncementAction, type AnnouncementActionState } from '@/actions/announcements'
 
 const AUDIENCE_OPTIONS = [
@@ -36,35 +36,47 @@ function toDateInputValue(value: string) {
 export function AnnouncementForm({
   announcement,
   clubs,
+  onClose,
 }: {
   announcement: AnnouncementValues
   clubs: { id: string; name: string }[]
+  onClose?: () => void
 }) {
+  const router = useRouter()
+  const close = onClose ?? (() => router.push('/super-admin/announcements'))
   const [state, formAction, isPending] = useActionState<AnnouncementActionState, FormData>(updateAnnouncementAction, null)
   const [audience, setAudience] = useState(announcement.audience)
   const [priority, setPriority] = useState(announcement.priority)
   const [status, setStatus] = useState(announcement.status)
   const [hasExpiry, setHasExpiry] = useState(!!announcement.expiry_date)
 
-  const backHref = '/super-admin/announcements'
+  useEffect(() => {
+    if (state?.success) close()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state])
 
   return (
-    <div className="p-8 font-[family-name:var(--font-inter)]">
-      <div className="mb-6">
-        <Link href={backHref} className="text-sm font-semibold text-[#1E4BB8] hover:underline">
-          ← Back to Announcements
-        </Link>
-        <h1 className="mt-3 text-[22px] font-bold tracking-[-0.22px] text-[#0F172A]">Edit Announcement</h1>
+    <div className="mx-auto flex max-h-[90vh] w-full max-w-[672px] flex-col overflow-hidden rounded-2xl bg-white shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)] font-[family-name:var(--font-inter)]">
+      <div className="flex items-start justify-between gap-4 px-6 pb-4 pt-6">
+        <h1 className="text-[18px] font-bold leading-[24px] text-[#0F172A]">Edit Announcement</h1>
+        <button
+          type="button"
+          onClick={close}
+          aria-label="Close"
+          className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-[#64748B] transition-colors hover:bg-[#F1F5F9]"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/icons/x-close.svg" alt="" width={11.67} height={11.67} />
+        </button>
       </div>
 
-      <div className="mx-auto max-w-[672px] rounded-2xl bg-white shadow-[0_1px_1px_rgba(0,0,0,0.05)]">
-        <form action={formAction} className="flex flex-col">
-          <input type="hidden" name="announcement_id" value={announcement.id} />
+      <form action={formAction} className="flex flex-1 flex-col overflow-hidden">
+        <input type="hidden" name="announcement_id" value={announcement.id} />
           <input type="hidden" name="audience" value={audience} />
           <input type="hidden" name="priority" value={priority} />
           <input type="hidden" name="intent" value={status === 'draft' ? 'draft' : 'publish'} />
 
-          <div className="flex flex-col gap-4 p-6">
+          <div className="flex flex-1 flex-col gap-4 overflow-y-auto bg-[#F8FAFC] p-6">
             {state?.error && (
               <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">
                 {state.error}
@@ -209,23 +221,23 @@ export function AnnouncementForm({
             </div>
           </div>
 
-          <div className="flex items-center gap-3 border-t border-[#E2E8F0] px-6 py-4">
-            <button
-              type="submit"
-              disabled={isPending}
-              className="rounded-lg bg-[#F4AC1E] px-5 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
-            >
-              {isPending ? 'Saving…' : 'Save Changes'}
-            </button>
-            <Link
-              href={backHref}
-              className="rounded-lg bg-[#F1F5F9] px-5 py-2.5 text-[13px] font-medium text-[#0F172A] transition-colors hover:bg-[#E2E8F0]"
-            >
-              Cancel
-            </Link>
-          </div>
+        <div className="flex items-center gap-3 border-t border-[#E2E8F0] px-6 py-4">
+          <button
+            type="submit"
+            disabled={isPending}
+            className="rounded-lg bg-[#F4AC1E] px-5 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
+          >
+            {isPending ? 'Saving…' : 'Save Changes'}
+          </button>
+          <button
+            type="button"
+            onClick={close}
+            className="rounded-lg bg-[#F1F5F9] px-5 py-2.5 text-[13px] font-medium text-[#0F172A] transition-colors hover:bg-[#E2E8F0]"
+          >
+            Cancel
+          </button>
+        </div>
         </form>
       </div>
-    </div>
   )
 }

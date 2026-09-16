@@ -22,9 +22,17 @@ const LANGUAGE_OPTIONS = [
   { value: 'ta', label: 'Tamil' },
 ]
 
-export function GatekeeperEditForm({ gatekeeper, clubs }: { gatekeeper: Gatekeeper; clubs: Club[] }) {
+export function GatekeeperEditForm({
+  gatekeeper,
+  clubs,
+  onClose,
+}: {
+  gatekeeper: Gatekeeper
+  clubs: Club[]
+  onClose?: () => void
+}) {
   const router = useRouter()
-  const close = () => router.push(`/super-admin/gatekeepers/${gatekeeper.id}`)
+  const close = onClose ?? (() => router.push(`/super-admin/gatekeepers/${gatekeeper.id}`))
   const [state, formAction, isPending] = useActionState(updateGatekeeperAction, null)
 
   useEffect(() => {
