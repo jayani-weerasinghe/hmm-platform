@@ -31,7 +31,15 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-export function ResourceRow({ resource }: { resource: ResourceRowData }) {
+export function ResourceRow({
+  resource,
+  basePath = '/super-admin/resources',
+  canManage = true,
+}: {
+  resource: ResourceRowData
+  basePath?: string
+  canManage?: boolean
+}) {
   const visual = resourceTypeVisual(resource.type)
   const typePillIcon = RESOURCE_TYPE_PILL_ICON[resource.type]
   const category = resource.category?.trim()
@@ -105,15 +113,19 @@ export function ResourceRow({ resource }: { resource: ResourceRowData }) {
             {primaryAction.label}
           </a>
         )}
-        <Link
-          href={`/super-admin/resources/${resource.id}/edit`}
-          className="flex items-center gap-1 rounded-lg bg-[#F1F5F9] px-3 py-1.5 text-[12px] font-semibold tracking-[0.24px] text-[#475569] hover:bg-slate-200 transition-colors"
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/icons/pencil.svg" alt="" className="h-3 w-3" />
-          Edit
-        </Link>
-        <ResourceDeleteButton resourceId={resource.id} contentUrl={resource.content_url} />
+        {canManage && (
+          <>
+            <Link
+              href={`${basePath}/${resource.id}/edit`}
+              className="flex items-center gap-1 rounded-lg bg-[#F1F5F9] px-3 py-1.5 text-[12px] font-semibold tracking-[0.24px] text-[#475569] hover:bg-slate-200 transition-colors"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/icons/pencil.svg" alt="" className="h-3 w-3" />
+              Edit
+            </Link>
+            <ResourceDeleteButton resourceId={resource.id} contentUrl={resource.content_url} />
+          </>
+        )}
       </div>
     </div>
   )
