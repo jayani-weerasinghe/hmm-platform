@@ -340,5 +340,5 @@ export async function reactivateGatekeeperAction(
 
   revalidatePath(`/super-admin/gatekeepers/${gatekeeperId}`)
   revalidatePath('/super-admin/gatekeepers')
-  redirect(`/super-admin/gatekeepers/${gatekeeperId}`)
+  return { success: true }
 }

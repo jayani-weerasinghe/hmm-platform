@@ -1107,6 +1107,31 @@ Admin-side directory/CRUD screen built anyway, at `/super-admin/gatekeepers`.
   Auth Admin API user records and the cascaded `profiles` rows) and
   reconfirmed back to the pre-test baseline (1 super_admin, 0 champions,
   0 gatekeepers) via direct DB query.
+- **2026-09-16 — Deactivate/Reactivate brought in line with Champion's popup
+  pattern**: Gatekeeper Deactivate previously used its own inline
+  confirm-box (no `ModalOverlay`, no blur), and Reactivate was still a full
+  page with no `@modal` intercept and an action that ended in `redirect()`
+  instead of `return {success:true}` — the same silent-redirect-breaks-modal
+  issue Champion Reactivate had. Fixed by extracting a new shared
+  `components/deactivation-controls.tsx` (`DeactivationControls`, generic
+  over the action's result type) used by **both** `champion-status-
+  controls.tsx` and `gatekeeper-status-controls.tsx` — the Champion version
+  passes an `extraWarning` callback for its sole-active-champion-in-club
+  notice (Gatekeepers have no equivalent, so it's omitted there), everything
+  else (popup copy, layout, button styling) is identical by construction
+  rather than by copy-paste. `reactivateGatekeeperAction` (`actions/
+  gatekeepers.ts`) now returns `{success:true}`; added the matching
+  `@modal` intercept at `gatekeepers/@modal/(.)[id]/reactivate/` (mirrors
+  Champion's), and `reactivate-gatekeeper-form.tsx` now accepts an optional
+  `onClose` the same way the Champion form does. Verified end-to-end with a
+  throwaway test Gatekeeper: deactivated and reactivated through the live
+  popups, confirmed `is_active`/`deactivation_reason`/`club_id` and both
+  audit-log rows directly via the DB (not just the UI) — the hidden
+  `gatekeeper_id`/`club_id` fields are correctly wired, no repeat of the
+  earlier missing-hidden-input bug — then deleted the test account and its
+  audit rows and reconfirmed cleanup. Champion's popup was also re-verified
+  live post-refactor (opened, confirmed identical rendering, cancelled
+  without submitting — it's the real admin's own account, not a test one).
 
 ### Not started yet
 - Everything on the Champion side (Gatekeeper management, Champion

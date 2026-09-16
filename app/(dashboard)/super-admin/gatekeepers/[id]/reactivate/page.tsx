@@ -2,6 +2,8 @@ import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { ReactivateGatekeeperForm } from './reactivate-gatekeeper-form'
 
+export const metadata = { title: 'Reactivate Gatekeeper — HMM Super Admin' }
+
 export default async function ReactivateGatekeeperPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = await createClient()
@@ -29,7 +31,7 @@ export default async function ReactivateGatekeeperPage({ params }: { params: Pro
   const currentClub = gatekeeper.clubs as any
 
   return (
-    <div className="p-8">
+    <div className="flex justify-center p-8">
       <ReactivateGatekeeperForm
         gatekeeper={{ id: gatekeeper.id, full_name: gatekeeper.full_name, email: gatekeeper.email, club_id: gatekeeper.club_id }}
         currentClub={currentClub}
