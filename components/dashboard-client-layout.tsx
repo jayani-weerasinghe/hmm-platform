@@ -125,6 +125,7 @@ const CHAMPION_NAV: NavCfg[] = [
   { href: '/champion', label: 'Dashboard', Icon: IconDashboard, exact: true },
   { href: '/champion/gatekeepers', label: 'Gatekeepers', Icon: IconGatekeepers },
   { href: '/champion/events', label: 'Events', Icon: IconEvents },
+  { href: '/champion/announcements', label: 'Announcements', Icon: IconAnnouncements },
 ]
 
 function SideNavItem({ href, label, Icon, exact, collapsed }: NavCfg & { collapsed: boolean }) {
