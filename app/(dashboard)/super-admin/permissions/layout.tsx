@@ -3,7 +3,13 @@ import { PermissionsSubNav } from './permissions-sub-nav'
 
 export const metadata = { title: 'Permissions — HMM Super Admin' }
 
-export default function PermissionsLayout({ children }: { children: React.ReactNode }) {
+export default function PermissionsLayout({
+  children,
+  modal,
+}: {
+  children: React.ReactNode
+  modal: React.ReactNode
+}) {
   return (
     <div className="flex flex-col gap-6 p-8 font-[family-name:var(--font-inter)]">
       <div className="flex items-center justify-between gap-6">
@@ -27,6 +33,7 @@ export default function PermissionsLayout({ children }: { children: React.ReactN
       </div>
       <PermissionsSubNav />
       {children}
+      {modal}
     </div>
   )
 }

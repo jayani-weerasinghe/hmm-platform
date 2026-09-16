@@ -70,26 +70,14 @@ export default async function ProfilePage() {
     <div className="p-8 font-[family-name:var(--font-inter)]">
 
         {/* Header */}
-        <div className="mb-8 flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-[24px] font-bold tracking-[-0.7px] text-[#0F172A]">
-              Admin Profile &amp; Account Settings
-            </h1>
-            <p className="mt-1 max-w-[707px] text-[14px] leading-5 text-[#475569]">
-              Manage your personal information, communication preferences, and security settings across the
-              Healing Minds Matter network.
-            </p>
-          </div>
-          <div className="flex flex-shrink-0 items-center gap-2">
-            <a
-              href="#personal-account-details"
-              className="flex h-10 items-center gap-2 rounded-lg bg-[#F4AC1E] px-5 text-[12px] font-semibold tracking-[0.24px] text-white shadow-[0px_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F]"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/icons/header-edit-details.svg" alt="" className="h-[13.5px] w-[13.5px]" />
-              Edit Details
-            </a>
-          </div>
+        <div className="mb-8">
+          <h1 className="text-[24px] font-bold tracking-[-0.7px] text-[#0F172A]">
+            Admin Profile &amp; Account Settings
+          </h1>
+          <p className="mt-1 max-w-[707px] text-[14px] leading-5 text-[#475569]">
+            Manage your personal information, communication preferences, and security settings across the
+            Healing Minds Matter network.
+          </p>
         </div>
 
         <div className="grid grid-cols-2 gap-4">

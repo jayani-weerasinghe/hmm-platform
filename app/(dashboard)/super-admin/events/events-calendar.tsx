@@ -181,14 +181,18 @@ export function EventsCalendar({ view, year, month, day, club, type, q, events, 
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src="/icons/chevron-down.svg" alt="" className="pointer-events-none absolute right-2.5 top-1/2 h-[5px] w-[8px] -translate-y-1/2" />
               </div>
-              <select
-                value={club}
-                onChange={e => router.push(hrefWith({ club: e.target.value }))}
-                className="h-[34px] appearance-none rounded-[5px] bg-[#F1F5F9] px-3 text-[11px] font-semibold tracking-[0.44px] text-[#0F172A] focus:outline-none"
-              >
-                <option value="">All Clubs</option>
-                {clubs.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              <div className="relative">
+                <select
+                  value={club}
+                  onChange={e => router.push(hrefWith({ club: e.target.value }))}
+                  className="h-[34px] appearance-none rounded-[5px] bg-[#F1F5F9] pl-3 pr-7 text-[11px] font-semibold tracking-[0.44px] text-[#0F172A] focus:outline-none"
+                >
+                  <option value="">All Clubs</option>
+                  {clubs.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/icons/chevron-down.svg" alt="" className="pointer-events-none absolute right-2.5 top-1/2 h-[5px] w-[8px] -translate-y-1/2" />
+              </div>
             </div>
 
             <div className="flex items-center gap-2">

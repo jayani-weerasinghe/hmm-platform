@@ -53,7 +53,7 @@ export async function updateRoleDefaultAction(formData: FormData) {
 
 // ── Story 9.2: Individual Permission Exception ─────────────────────────────
 
-export type ExceptionActionState = { error?: string } | null
+export type ExceptionActionState = { error?: string; success?: boolean } | null
 
 export async function grantIndividualExceptionAction(
   _prev: ExceptionActionState,
@@ -90,7 +90,7 @@ export async function grantIndividualExceptionAction(
   })
 
   revalidatePath('/super-admin/permissions/exceptions')
-  redirect('/super-admin/permissions/exceptions')
+  return { success: true }
 }
 
 export async function revokeIndividualExceptionAction(formData: FormData) {
@@ -316,7 +316,7 @@ export async function searchAssignableUsersAction(query: string): Promise<Assign
 
 // ── Story 9.4: Temporary Role Delegation ────────────────────────────────────
 
-export type DelegationActionState = { error?: string } | null
+export type DelegationActionState = { error?: string; success?: boolean } | null
 
 export async function createDelegationAction(
   _prev: DelegationActionState,
@@ -353,7 +353,7 @@ export async function createDelegationAction(
   })
 
   revalidatePath('/super-admin/permissions/delegations')
-  redirect('/super-admin/permissions/delegations')
+  return { success: true }
 }
 
 export async function endDelegationAction(formData: FormData) {

@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { NewExceptionForm } from './new-exception-form'
 
+export const metadata = { title: 'Grant Individual Exception — HMM Super Admin' }
+
 export default async function NewExceptionPage() {
   const supabase = await createClient()
 
@@ -11,5 +13,9 @@ export default async function NewExceptionPage() {
     .eq('is_active', true)
     .order('full_name')
 
-  return <NewExceptionForm users={users ?? []} />
+  return (
+    <div className="flex justify-center p-8">
+      <NewExceptionForm users={users ?? []} />
+    </div>
+  )
 }
