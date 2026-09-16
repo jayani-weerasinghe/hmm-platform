@@ -66,7 +66,7 @@ function PasswordInput({
   )
 }
 
-export function ChangePasswordForm({ onClose }: { onClose?: () => void }) {
+export function ChangePasswordForm({ onClose, profilePath = '/super-admin/profile' }: { onClose?: () => void; profilePath?: string }) {
   const [state, formAction, isPending] = useActionState(changePasswordAction, null)
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -88,7 +88,7 @@ export function ChangePasswordForm({ onClose }: { onClose?: () => void }) {
         <p className="mb-6 text-sm text-gray-500">
           Your password has been updated. If you did not make this change, please contact support immediately.
         </p>
-        <Link href="/super-admin/profile" className="text-sm text-blue-600 hover:text-blue-700">← Back to profile</Link>
+        <Link href={profilePath} className="text-sm text-blue-600 hover:text-blue-700">← Back to profile</Link>
       </div>
     )
   }
@@ -227,7 +227,7 @@ export function ChangePasswordForm({ onClose }: { onClose?: () => void }) {
             </button>
           ) : (
             <Link
-              href="/super-admin/profile"
+              href={profilePath}
               className="flex h-10 items-center rounded-lg bg-[#F1F5F9] px-4 text-[13px] font-medium text-[#0F172A] transition-colors hover:bg-[#E2E8F0]"
             >
               Cancel
