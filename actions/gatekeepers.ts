@@ -93,6 +93,36 @@ async function inviteAndCreateGatekeeper(params: {
   return { id: newUserId, gatekeeper_code: gkCode }
 }
 
+// inviteAndCreateGatekeeper uses the service-role admin client, which
+// bypasses RLS entirely — so club scoping for a Champion caller has to be
+// enforced here, not left to the database. A Champion's submitted club_id
+// (if any) is always ignored in favor of their own club; only a Super Admin
+// may target an arbitrary club. Shared by both the Super Admin and Champion
+// create-gatekeeper UIs rather than forked into a second action.
+async function resolveScopedClubId(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  requestedClubId: string | null
+): Promise<{ clubId: string } | { error: string }> {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data: caller } = await supabase
+    .from('profiles')
+    .select('role, club_id')
+    .eq('id', user.id)
+    .single()
+
+  if (caller?.role === 'champion') {
+    if (!caller.club_id) return { error: 'Your account has no assigned club.' }
+    return { clubId: caller.club_id }
+  }
+  if (caller?.role === 'super_admin') {
+    if (!requestedClubId) return { error: 'Assigned club is required.' }
+    return { clubId: requestedClubId }
+  }
+  return { error: 'Not authorized.' }
+}
+
 export async function createGatekeeperAction(
   _prev: GatekeeperActionState,
   formData: FormData
@@ -101,24 +131,27 @@ export async function createGatekeeperAction(
   const email    = (formData.get('email') as string | null)?.trim().toLowerCase()
   const phone    = (formData.get('phone') as string | null)?.trim() || null
   const preferredLanguage = (formData.get('preferred_language') as string | null) || 'en'
-  const clubId   = formData.get('club_id') as string | null
+  const requestedClubId = formData.get('club_id') as string | null
   const certificationDate = formData.get('certification_date') as string | null
 
   if (!fullName) return { error: 'Full name is required.' }
   if (!email)    return { error: 'Email is required.' }
-  if (!clubId)   return { error: 'Assigned club is required.' }
   if (!certificationDate) return { error: 'Certification date is required.' }
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  const scoped = await resolveScopedClubId(supabase, requestedClubId)
+  if ('error' in scoped) return { error: scoped.error }
+
   const result = await inviteAndCreateGatekeeper({
-    fullName, email, phone, preferredLanguage, clubId, certificationDate, actorId: user.id,
+    fullName, email, phone, preferredLanguage, clubId: scoped.clubId, certificationDate, actorId: user.id,
   })
   if ('error' in result) return { error: result.error }
 
   revalidatePath('/super-admin/gatekeepers')
+  revalidatePath('/champion/gatekeepers')
   return { success: true }
 }
 
@@ -155,13 +188,29 @@ export async function createGatekeepersBulkAction(
   const clubIdx = col('club_id')
   const certIdx = col('certification_date')
 
-  if (nameIdx === -1 || emailIdx === -1 || clubIdx === -1 || certIdx === -1) {
-    return { error: 'CSV header must include: full_name, email, club_id, certification_date (phone is optional).' }
-  }
-
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+
+  const { data: caller } = await supabase
+    .from('profiles')
+    .select('role, club_id')
+    .eq('id', user.id)
+    .single()
+
+  if (caller?.role !== 'champion' && caller?.role !== 'super_admin') {
+    return { error: 'Not authorized.' }
+  }
+  // A Champion's rows are always scoped to their own club regardless of any
+  // club_id column in the CSV — same rule as the single-gatekeeper form. A
+  // Super Admin's CSV still requires a real club_id column, same as before.
+  const forcedClubId = caller.role === 'champion' ? caller.club_id : null
+  if (caller.role === 'champion' && !forcedClubId) return { error: 'Your account has no assigned club.' }
+
+  if (nameIdx === -1 || emailIdx === -1 || certIdx === -1 || (caller.role === 'super_admin' && clubIdx === -1)) {
+    const clubHint = caller.role === 'super_admin' ? 'full_name, email, club_id, certification_date' : 'full_name, email, certification_date'
+    return { error: `CSV header must include: ${clubHint} (phone${caller.role === 'super_admin' ? '' : ' and club_id'} is optional).` }
+  }
 
   const results: BulkGatekeeperRow[] = []
   let createdCount = 0
@@ -172,7 +221,7 @@ export async function createGatekeepersBulkAction(
     const fullName = cells[nameIdx]?.trim()
     const email = cells[emailIdx]?.trim().toLowerCase()
     const phone = phoneIdx !== -1 ? (cells[phoneIdx]?.trim() || null) : null
-    const clubId = cells[clubIdx]?.trim()
+    const clubId = forcedClubId ?? (clubIdx !== -1 ? cells[clubIdx]?.trim() : undefined)
     const certificationDate = cells[certIdx]?.trim()
 
     if (!fullName || !email || !clubId || !certificationDate) {
@@ -191,7 +240,10 @@ export async function createGatekeepersBulkAction(
     }
   }
 
-  if (createdCount > 0) revalidatePath('/super-admin/gatekeepers')
+  if (createdCount > 0) {
+    revalidatePath('/super-admin/gatekeepers')
+    revalidatePath('/champion/gatekeepers')
+  }
 
   return { success: createdCount === dataRows.length, results, createdCount }
 }

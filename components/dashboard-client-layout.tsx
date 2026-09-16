@@ -123,6 +123,7 @@ const SUPER_ADMIN_NAV: NavCfg[] = [
 
 const CHAMPION_NAV: NavCfg[] = [
   { href: '/champion', label: 'Dashboard', Icon: IconDashboard, exact: true },
+  { href: '/champion/gatekeepers', label: 'Gatekeepers', Icon: IconGatekeepers },
 ]
 
 function SideNavItem({ href, label, Icon, exact, collapsed }: NavCfg & { collapsed: boolean }) {
@@ -151,7 +152,7 @@ function getInitials(name: string): string {
   return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
 }
 
-function ProfileMenu({ fullName, roleLabel, initials }: { fullName: string; roleLabel: string; initials: string }) {
+function ProfileMenu({ fullName, roleLabel, initials, profileHref }: { fullName: string; roleLabel: string; initials: string; profileHref: string }) {
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const containerRef = useRef<HTMLDivElement>(null)
@@ -200,7 +201,7 @@ function ProfileMenu({ fullName, roleLabel, initials }: { fullName: string; role
           className="absolute right-0 top-[calc(100%+8px)] z-50 w-48 overflow-hidden rounded-lg border border-[#E2E8F0] bg-white py-1.5 shadow-lg"
         >
           <Link
-            href="/super-admin/profile"
+            href={profileHref}
             role="menuitem"
             onClick={() => setOpen(false)}
             className="flex items-center px-4 py-2 text-sm font-medium text-[#0F172A] hover:bg-gray-50"
@@ -345,7 +346,12 @@ export function DashboardClientLayout({
               </button>
             </div>
             <div className="h-6 w-px bg-[#E2E8F0]" />
-            <ProfileMenu fullName={profile.full_name} roleLabel={roleLabel} initials={initials} />
+            <ProfileMenu
+              fullName={profile.full_name}
+              roleLabel={roleLabel}
+              initials={initials}
+              profileHref={profile.role === 'super_admin' ? '/super-admin/profile' : '/champion/profile'}
+            />
           </div>
         </header>
 
