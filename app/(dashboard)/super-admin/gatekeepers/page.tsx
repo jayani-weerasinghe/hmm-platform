@@ -78,7 +78,7 @@ export default async function GatekeepersPage({
     <div className="flex flex-col gap-4 p-8 font-[family-name:var(--font-inter)]">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-[24px] font-bold tracking-[-0.7px] text-[#0F172A]">Platform-Wide Gatekeeper Directory &amp; Oversight</h1>
+          <h1 className="text-[24px] font-bold tracking-[-0.7px] text-[#0F172A]">Gatekeeper Management</h1>
           <p className="mt-1 text-sm text-[#475569]">
             Monitor, search, and manage all QPR-certified Gatekeepers across all {activeClubCount} active regional clubs, and audit 3-year certification lifecycles.
           </p>

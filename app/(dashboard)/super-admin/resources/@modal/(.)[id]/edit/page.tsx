@@ -1,14 +1,8 @@
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { EditResourceForm } from '../../resource-form'
+import { EditResourceModal } from './edit-resource-modal'
 
-export const metadata = { title: 'Edit Resource — HMM Super Admin' }
-
-export default async function EditResourcePage({
-  params,
-}: {
-  params: Promise<{ id: string }>
-}) {
+export default async function InterceptedEditResourcePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = await createClient()
 
@@ -20,9 +14,5 @@ export default async function EditResourcePage({
 
   if (!resource) notFound()
 
-  return (
-    <div className="flex justify-center p-8">
-      <EditResourceForm resource={resource} />
-    </div>
-  )
+  return <EditResourceModal resource={resource} />
 }

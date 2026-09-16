@@ -12,7 +12,7 @@ async function getActorId() {
   return user?.id
 }
 
-export type ClubActionState = { error?: string } | null
+export type ClubActionState = { error?: string; success?: boolean } | null
 
 export async function createClubAction(
   _prev: ClubActionState,
@@ -65,7 +65,7 @@ export async function createClubAction(
     details: { club_code: clubCode, name },
   })
 
-  redirect('/super-admin/clubs')
+  return { success: true }
 }
 
 export async function updateClubAction(
@@ -106,7 +106,7 @@ export async function updateClubAction(
 
   revalidatePath(`/super-admin/clubs/${clubId}`)
   revalidatePath('/super-admin/clubs')
-  redirect(`/super-admin/clubs/${clubId}`)
+  return { success: true }
 }
 
 export async function deactivateClubAction(formData: FormData) {

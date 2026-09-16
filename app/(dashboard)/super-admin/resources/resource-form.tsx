@@ -1,7 +1,7 @@
 'use client'
 
-import { useActionState, useState } from 'react'
-import Link from 'next/link'
+import { useActionState, useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { updateResourceAction, type ResourceActionState } from '@/actions/resources'
 
 interface ResourceValues {
@@ -18,35 +18,46 @@ interface ResourceValues {
 const inputClass = 'mt-1.5 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 py-2 text-[13.5px] text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]'
 const labelClass = 'block text-[13px] font-medium text-[#0F172A]'
 
-// Edit-only — Create now goes through CreateResourceForm (matches the real
+// Edit-only — Create goes through CreateResourceForm (matches the real
 // Figma "Create New Resource" modal). No Figma edit-modal design exists, so
-// this keeps its original full-page layout/copy untouched.
-export function EditResourceForm({ resource }: { resource: ResourceValues }) {
+// this keeps its own simpler field layout — only the surrounding chrome
+// (header/close/footer) matches the app's shared modal-card convention.
+export function EditResourceForm({ resource, onClose }: { resource: ResourceValues; onClose?: () => void }) {
+  const router = useRouter()
+  const close = onClose ?? (() => router.push('/super-admin/resources'))
   const [state, formAction, isPending] = useActionState<ResourceActionState, FormData>(updateResourceAction, null)
   const [type, setType] = useState(resource.type)
 
-  const backHref = '/super-admin/resources'
+  useEffect(() => {
+    if (state?.success) close()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state])
 
   return (
-    <div className="p-8 font-[family-name:var(--font-inter)]">
-      <div className="mb-6">
-        <Link href={backHref} className="text-[13px] font-semibold text-[#003495]">
-          ← Back to Resources
-        </Link>
-        <h1 className="mt-3 text-[24px] font-bold tracking-[-0.4px] text-[#0F172A]">
-          Edit Resource
-        </h1>
+    <div className="mx-auto flex max-h-[90vh] w-full max-w-[560px] flex-col overflow-hidden rounded-2xl bg-white shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)] font-[family-name:var(--font-inter)]">
+      <div className="flex items-start justify-between gap-4 px-6 pb-4 pt-6">
+        <h1 className="text-[18px] font-bold leading-[24px] text-[#0F172A]">Edit Resource</h1>
+        <button
+          type="button"
+          onClick={close}
+          aria-label="Close"
+          className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-[#64748B] transition-colors hover:bg-[#F1F5F9]"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/icons/x-close.svg" alt="" width={11.67} height={11.67} />
+        </button>
       </div>
 
-      <div className="mx-auto max-w-xl rounded-2xl bg-white p-8 shadow-[0px_1px_1px_rgba(0,0,0,0.05)]">
-        {state?.error && (
-          <div className="mb-5 rounded-lg bg-red-50 p-3 text-[13px] text-red-700" role="alert">
-            {state.error}
-          </div>
-        )}
-        <form action={formAction} className="space-y-5" encType="multipart/form-data">
-          <input type="hidden" name="resource_id" value={resource.id} />
-          <input type="hidden" name="previous_content_url" value={resource.content_url ?? ''} />
+      <form action={formAction} className="flex flex-1 flex-col overflow-hidden">
+        <input type="hidden" name="resource_id" value={resource.id} />
+        <input type="hidden" name="previous_content_url" value={resource.content_url ?? ''} />
+
+        <div className="flex flex-1 flex-col gap-5 overflow-y-auto bg-[#F8FAFC] p-6">
+          {state?.error && (
+            <div className="rounded-lg bg-red-50 p-3 text-[13px] text-red-700" role="alert">
+              {state.error}
+            </div>
+          )}
 
           <div>
             <label htmlFor="title" className={labelClass}>
@@ -166,6 +177,7 @@ export function EditResourceForm({ resource }: { resource: ResourceValues }) {
                   accept={type === 'video' ? 'video/*' : undefined}
                   className={inputClass}
                 />
+                <p className="mt-1.5 text-[12px] text-[#64748B]">Max 50MB.</p>
                 {resource.content_url && !/^https?:\/\//i.test(resource.content_url) && (
                   <p className="mt-1.5 text-[12px] text-[#64748B]">
                     A file is already attached. Uploading a new one replaces it.
@@ -190,24 +202,25 @@ export function EditResourceForm({ resource }: { resource: ResourceValues }) {
               </div>
             </>
           )}
+        </div>
 
-          <div className="flex gap-3 pt-2">
-            <button
-              type="submit"
-              disabled={isPending}
-              className="rounded-lg bg-[#F4AC1E] px-5 py-2.5 text-[13.5px] font-semibold text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
-            >
-              {isPending ? 'Saving…' : 'Save Changes'}
-            </button>
-            <Link
-              href={backHref}
-              className="flex items-center rounded-lg border border-[#E2E8F0] px-5 py-2.5 text-[13.5px] font-semibold text-[#475569] hover:bg-gray-50"
-            >
-              Cancel
-            </Link>
-          </div>
-        </form>
-      </div>
+        <div className="flex items-center justify-end gap-2.5 border-t border-[#E2E8F0] px-6 py-4">
+          <button
+            type="button"
+            onClick={close}
+            className="flex h-10 items-center rounded-lg bg-[#F1F5F9] px-4 text-[13px] font-medium text-[#0F172A] transition-colors hover:bg-[#E2E8F0]"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={isPending}
+            className="flex h-10 items-center rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
+          >
+            {isPending ? 'Saving…' : 'Save Changes'}
+          </button>
+        </div>
+      </form>
     </div>
   )
 }

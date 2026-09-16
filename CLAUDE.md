@@ -26,41 +26,31 @@ password reuse rules).
 - Every new table needs a Row Level Security policy before it ships.
 - Run and pass relevant tests before marking a story done.
 
-## ⚠️ Email delivery is in TEST MODE — do not onboard real Champions/Gatekeepers yet
+## Email delivery — live via SendGrid (switched from Resend 2026-09-16)
 
 Supabase Auth emails (Champion/Gatekeeper invites, password reset, etc.) go
-through Resend SMTP (set up 2026-09-14), but the sender is still
-`onboarding@resend.dev` — Resend's own pre-verified test domain, not a
-domain this project owns.
+through SendGrid's SMTP relay, sending from a **verified Single Sender**
+(`jayani@ensiz.com`) — this is a real, personally-verified address, not a
+DNS-verified domain, but SendGrid's Single Sender model allows sending to
+**any recipient**, unlike Resend's `onboarding@resend.dev` test sender
+(which only delivered to the Resend account owner's own address — see the
+2026-09-14 / 2026-09-16 Epic 1 log entries below for that history).
 
-**What this means in practice:**
-- Invites sent to any email address other than `jayani@ensiz.com` (the
-  Resend account owner's address) will silently fail or bounce — Resend
-  still accepts the send and Supabase's `/invite` call still returns `200`,
-  so **the app shows success with no error even though the real person
-  never receives anything.**
-- **Do not use "Add Champion" (or any other invite flow) with a real
-  Champion's or Gatekeeper's actual email address** until the domain swap
-  below is done — it will look like onboarding worked when it didn't.
-- Only test with `jayani@ensiz.com` in the meantime.
+**Confirmed working 2026-09-16**: a real invite was sent to a non-`ensiz.com`
+address and confirmed delivered.
 
-### Before onboarding real Champions — domain swap checklist
-1. Get DNS access to `healingmindsmatter.org` (or pick a different, dedicated
-   sending domain) and verify it in Resend: resend.com/domains → Add Domain
-   → add the SPF/DKIM records Resend gives you → wait for "Verified".
-2. Update the Supabase SMTP sender via `PATCH /v1/projects/{ref}/config/auth`
-   with `smtp_admin_email: noreply@<realdomain>`. **Must resend every other
-   `smtp_*` field (host/port/user/pass/sender_name) in the same request** —
-   this endpoint replaces the whole SMTP block rather than merging a partial
-   update; see the `reference-supabase` memory for the exact gotcha.
-3. Send one real test invite to a non-`ensiz.com` address you control and
-   confirm it actually lands (check spam too) before trusting it for real
-   Champions/Gatekeepers.
-4. Once confirmed, delete this warning section and update the Epic 1
-   progress log entry below to reflect production email as live.
-
-Full detail on how SMTP was configured and why it's currently limited this
-way is in the Epic 1 progress log entry dated 2026-09-14, below.
+**Still worth knowing:**
+- SendGrid's free tier caps at 100 emails/day — fine for continued testing
+  and low-volume real onboarding, but confirm current SendGrid plan limits
+  before any high-volume Champion/Gatekeeper import.
+- The sender is a named individual's address (`jayani@ensiz.com`), not a
+  generic `noreply@`/`support@` — acceptable for now, but a DNS-verified
+  dedicated domain (e.g. `healingmindsmatter.org`, once DNS access exists)
+  would be the more standard long-term setup and would also unlock a
+  generic sender address instead of a personal one.
+- No orphaned-record risk confirmed: when an invite fails for any reason,
+  no `auth.users` or `profiles` row is left behind — verified directly via
+  DB query after several forced failure tests.
 
 ## Progress Log
 
@@ -139,6 +129,43 @@ live-QA-passed 2026-09-07)
   `healingmindsmatter.org` domain entry in Resend was left as-is
   (unverified/pending) — no action taken on it either way, per an explicit
   decision with the user.
+  **2026-09-16 — switched from Resend to SendGrid, arbitrary-recipient limitation
+  resolved**: DNS access to `healingmindsmatter.org` still wasn't available, so
+  instead of domain verification, switched providers to one supporting
+  **Single Sender Verification** (proves ownership of one email address via a
+  confirmation-link click — no DNS records needed at all). Verified
+  `jayani@ensiz.com` as a SendGrid Single Sender, then re-pointed Supabase's
+  SMTP config to SendGrid's relay (`smtp.sendgrid.net:587`, `smtp_user:
+  "apikey"` literally, `smtp_pass` = a Mail-Send-scoped SendGrid API key,
+  `smtp_admin_email: jayani@ensiz.com`) via the same `PATCH /config/auth`
+  Management API call as before — same all-fields-in-one-request gotcha
+  applies. **This removes the single-recipient restriction**: Single Sender
+  Verification allows sending to any recipient, not just the verified
+  address itself (unlike Resend's `onboarding@resend.dev`, which only ever
+  delivered to the Resend account owner's own inbox). User confirmed a real
+  test invite to a non-`ensiz.com` address was sent and received. Rate limit
+  (40/hour) and `smtp_max_frequency` (60s between sends to the same address)
+  carried over unchanged from the Resend setup.
+  **Also fixed while verifying this**: `@supabase/auth-js`'s
+  `AuthRetryableFetchError` (thrown for 5xx-class invite failures) sets
+  `.message` to the raw JSON-stringified response body — literally the
+  2-character string `"{}"` for this project, since that error class doesn't
+  parse the response body's `msg`/`error_code` fields. Both `createChampionAction`
+  and `createGatekeeperAction` were relaying that unhelpful literal straight
+  to the UI as the error message. Extracted a shared `describeInviteError()`
+  helper (`lib/invite-errors.ts`) that detects this useless-message case and
+  substitutes a real explanation instead; both actions now use it. Verified
+  the fix live for both Champions and Gatekeepers, and confirmed (via direct
+  DB query after several forced failures) that a failed invite never leaves
+  behind an orphaned `auth.users` or `profiles` row.
+  **On HTTP status codes**: Next.js Server Actions always return `200` at the
+  transport layer for the form's POST request regardless of whether the
+  action returns `{success}` or `{error}` — the actual outcome travels inside
+  the RSC response body that `useActionState` unpacks into form state. This
+  is intentional Next.js behavior (a non-2xx/thrown response would trigger
+  Next's crash-style error boundary instead of the in-form error banner), not
+  a bug — don't mistake a `200` in the Network tab for a sign that an error
+  wasn't actually caught.
 - **2026-09-07 fix**: `middleware.ts`'s authenticated-user redirect (hit
   `/login` or `/forgot-password` while already signed in) was cloning the
   *full* incoming URL and only overwriting `.pathname`, so any dangling query
@@ -320,6 +347,10 @@ trigger both re-proven live end-to-end; no new bugs found)
   configured, see the Epic 1 note) — it's now purely a missing-code gap, and
   in test mode is further limited by the resend.dev sender only delivering
   to the Resend account's own address (see Epic 1 note for the full caveat).
+  **2026-09-16 update**: the resend.dev single-recipient limitation
+  referenced above no longer applies — see the Epic 1 2026-09-16 note; email
+  can now reach arbitrary recipients via SendGrid. Still purely a
+  missing-code gap for these two specific notifications.
 
 **Epic 4 — Resource Management (Stories 4.1–4.2)** ✅ (verified 2026-08-10,
 live-QA-passed 2026-09-07 — see fix below)
@@ -1058,6 +1089,13 @@ Admin-side directory/CRUD screen built anyway, at `/super-admin/gatekeepers`.
   hard failure changes the on-screen behavior too (the create form now
   shows a visible error for non-`ensiz.com` emails, rather than a false
   "success").
+  **2026-09-16 resolution**: this was indeed a real, correctly-surfaced hard
+  failure (not a stale note) — Resend's `onboarding@resend.dev` genuinely
+  rejected sends to any non-`ensiz.com` address with that exact 500. See the
+  Epic 1 2026-09-16 note: the project has since switched to SendGrid Single
+  Sender Verification specifically to remove this restriction. The one
+  actual bug this session surfaced — the create form showing a literal
+  `"{}"` for that failure rather than readable text — is also fixed there.
 - End-to-end verified live: single-gatekeeper create (all fields including
   `gatekeeper_code` and computed `qpr_expiry_date` verified via direct DB
   query), bulk CSV with one real row (`jayani@ensiz.com`, succeeded) and one

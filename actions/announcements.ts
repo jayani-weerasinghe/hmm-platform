@@ -110,7 +110,7 @@ export async function updateAnnouncementAction(
   })
 
   revalidatePath('/super-admin/announcements')
-  redirect('/super-admin/announcements')
+  return { success: true }
 }
 
 export async function deleteAnnouncementAction(formData: FormData) {

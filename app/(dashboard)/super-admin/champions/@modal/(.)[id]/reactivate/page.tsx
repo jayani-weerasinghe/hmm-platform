@@ -1,10 +1,8 @@
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { ReactivateChampionForm } from './reactivate-champion-form'
+import { ReactivateChampionModal } from './reactivate-champion-modal'
 
-export const metadata = { title: 'Reactivate Champion — HMM Super Admin' }
-
-export default async function ReactivateChampionPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function InterceptedReactivateChampionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = await createClient()
 
@@ -23,24 +21,16 @@ export default async function ReactivateChampionPage({ params }: { params: Promi
   ])
 
   if (!champion) notFound()
-  if (champion.is_active) {
-    return (
-      <div className="p-8">
-        <p className="text-sm text-gray-600">This champion is already active.</p>
-      </div>
-    )
-  }
+  if (champion.is_active) return null
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const currentClub = champion.clubs as any
 
   return (
-    <div className="flex justify-center p-8">
-      <ReactivateChampionForm
-        champion={{ id: champion.id, full_name: champion.full_name, email: champion.email, club_id: champion.club_id }}
-        currentClub={currentClub}
-        activeClubs={clubs ?? []}
-      />
-    </div>
+    <ReactivateChampionModal
+      champion={{ id: champion.id, full_name: champion.full_name, email: champion.email, club_id: champion.club_id }}
+      currentClub={currentClub}
+      activeClubs={clubs ?? []}
+    />
   )
 }

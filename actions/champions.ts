@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { writeAuditLog } from '@/lib/audit'
 import { endDelegationsForDeactivatedUser } from '@/actions/permissions'
+import { describeInviteError } from '@/lib/invite-errors'
 
 export type ChampionActionState = {
   error?: string
@@ -54,7 +55,7 @@ export async function createChampionAction(
     if (inviteError.message.toLowerCase().includes('already registered')) {
       return { error: 'An account with this email already exists.' }
     }
-    return { error: inviteError.message }
+    return { error: describeInviteError(inviteError) }
   }
 
   const newUserId = invited.user.id
@@ -252,5 +253,5 @@ export async function reactivateChampionAction(
 
   revalidatePath(`/super-admin/champions/${championId}`)
   revalidatePath('/super-admin/champions')
-  redirect(`/super-admin/champions/${championId}`)
+  return { success: true }
 }

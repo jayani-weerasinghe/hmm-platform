@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { writeAuditLog } from '@/lib/audit'
+import { describeInviteError } from '@/lib/invite-errors'
 
 export type GatekeeperActionState = {
   error?: string
@@ -56,7 +57,7 @@ async function inviteAndCreateGatekeeper(params: {
     if (inviteError.message.toLowerCase().includes('already registered')) {
       return { error: 'An account with this email already exists.' }
     }
-    return { error: inviteError.message }
+    return { error: describeInviteError(inviteError) }
   }
 
   const newUserId = invited.user.id
