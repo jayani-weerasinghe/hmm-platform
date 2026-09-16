@@ -1,7 +1,7 @@
 'use client'
 
-import { useActionState } from 'react'
-import Link from 'next/link'
+import { useActionState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { grantIndividualExceptionAction } from '@/actions/permissions'
 
 interface UserOption {
@@ -10,25 +10,39 @@ interface UserOption {
   role: string
 }
 
-export function NewExceptionForm({ users }: { users: UserOption[] }) {
+export function NewExceptionForm({ users, onClose }: { users: UserOption[]; onClose?: () => void }) {
+  const router = useRouter()
+  const close = onClose ?? (() => router.push('/super-admin/permissions/exceptions'))
   const [state, formAction, isPending] = useActionState(grantIndividualExceptionAction, null)
 
-  return (
-    <div className="font-[family-name:var(--font-inter)]">
-      <Link href="/super-admin/permissions/exceptions" className="text-[13px] font-semibold text-[#1E4BB8] hover:underline">
-        ← Back to Exceptions
-      </Link>
-      <h1 className="mt-3 text-[22px] font-bold tracking-[-0.22px] text-[#0F172A] font-[family-name:var(--font-jakarta)]">
-        Grant Individual Exception
-      </h1>
+  useEffect(() => {
+    if (state?.success) close()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state])
 
-      <div className="mx-auto mt-6 max-w-xl rounded-2xl bg-white p-8 shadow-[0px_1px_1px_rgba(0,0,0,0.05)]">
-        {state?.error && (
-          <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">
-            {state.error}
-          </div>
-        )}
-        <form action={formAction} className="flex flex-col gap-5">
+  return (
+    <div className="mx-auto w-full max-w-[520px] overflow-hidden rounded-2xl bg-white shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)] font-[family-name:var(--font-inter)]">
+      <div className="flex items-start justify-between gap-4 px-6 pb-4 pt-6">
+        <h1 className="text-[18px] font-bold leading-[24px] text-[#0F172A]">Grant Individual Exception</h1>
+        <button
+          type="button"
+          onClick={close}
+          aria-label="Close"
+          className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-[#64748B] transition-colors hover:bg-[#F1F5F9]"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/icons/x-close.svg" alt="" width={11.67} height={11.67} />
+        </button>
+      </div>
+
+      <form action={formAction}>
+        <div className="flex flex-col gap-5 bg-[#F8FAFC] p-6">
+          {state?.error && (
+            <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">
+              {state.error}
+            </div>
+          )}
+
           <div>
             <label htmlFor="user_id" className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">
               User <span className="text-[#DC2626]">*</span>
@@ -37,7 +51,7 @@ export function NewExceptionForm({ users }: { users: UserOption[] }) {
               id="user_id"
               name="user_id"
               required
-              className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
+              className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-white px-3.5 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
             >
               <option value="">Select a user…</option>
               {users.map(u => (
@@ -58,8 +72,8 @@ export function NewExceptionForm({ users }: { users: UserOption[] }) {
               name="permission"
               type="text"
               required
-              placeholder="e.g. manage_events"
-              className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 font-mono text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
+              placeholder="e.g. schedule_qpr_sessions"
+              className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-white px-3.5 font-mono text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
             />
           </div>
 
@@ -72,7 +86,7 @@ export function NewExceptionForm({ users }: { users: UserOption[] }) {
               name="is_enabled"
               required
               defaultValue="true"
-              className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
+              className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-white px-3.5 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
             >
               <option value="true">Allow</option>
               <option value="false">Deny</option>
@@ -81,24 +95,25 @@ export function NewExceptionForm({ users }: { users: UserOption[] }) {
               This overrides both the user&apos;s Group and Role default settings for this permission only.
             </p>
           </div>
+        </div>
 
-          <div className="flex gap-3 pt-2">
-            <button
-              type="submit"
-              disabled={isPending}
-              className="rounded-lg bg-[#F4AC1E] px-5 py-2.5 text-[13px] font-semibold text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
-            >
-              {isPending ? 'Granting…' : 'Grant Exception'}
-            </button>
-            <Link
-              href="/super-admin/permissions/exceptions"
-              className="rounded-lg bg-[#F1F5F9] px-5 py-2.5 text-[13px] font-medium text-[#0F172A] transition-colors hover:bg-[#E2E8F0]"
-            >
-              Cancel
-            </Link>
-          </div>
-        </form>
-      </div>
+        <div className="flex items-center gap-3 border-t border-[#E2E8F0] px-6 py-4">
+          <button
+            type="submit"
+            disabled={isPending}
+            className="rounded-lg bg-[#F4AC1E] px-5 py-2.5 text-[13px] font-semibold text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
+          >
+            {isPending ? 'Granting…' : 'Grant Exception'}
+          </button>
+          <button
+            type="button"
+            onClick={close}
+            className="rounded-lg bg-[#F1F5F9] px-5 py-2.5 text-[13px] font-medium text-[#0F172A] transition-colors hover:bg-[#E2E8F0]"
+          >
+            Cancel
+          </button>
+        </div>
+      </form>
     </div>
   )
 }

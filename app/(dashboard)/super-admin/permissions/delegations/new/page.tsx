@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { NewDelegationForm } from './new-delegation-form'
 
+export const metadata = { title: 'Create Delegation — HMM Super Admin' }
+
 export default async function NewDelegationPage() {
   const supabase = await createClient()
 
@@ -11,5 +13,9 @@ export default async function NewDelegationPage() {
     .eq('is_active', true)
     .order('full_name')
 
-  return <NewDelegationForm users={users ?? []} />
+  return (
+    <div className="flex justify-center p-8">
+      <NewDelegationForm users={users ?? []} />
+    </div>
+  )
 }
