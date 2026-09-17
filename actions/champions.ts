@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { writeAuditLog } from '@/lib/audit'
 import { endDelegationsForDeactivatedUser } from '@/actions/permissions'
-import { describeInviteError } from '@/lib/invite-errors'
+import { createInvitedUser } from '@/lib/create-invited-user'
 
 export type ChampionActionState = {
   error?: string
@@ -43,22 +43,14 @@ export async function createChampionAction(
   if (existing) return { error: 'An account with this email already exists.' }
 
   const admin = createAdminClient()
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
 
-  // Invite creates the auth user and sends a welcome email with a set-password link
-  const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
-    data: { full_name: fullName },
-    redirectTo: `${siteUrl}/auth/callback?next=/reset-password`,
-  })
+  // Creates the auth user with a system-generated temporary password and
+  // emails it directly (Supabase's own invite email can't embed a
+  // password) — see lib/create-invited-user.ts.
+  const invited = await createInvitedUser({ email, fullName, roleLabel: 'Champion' })
+  if ('error' in invited) return { error: invited.error }
 
-  if (inviteError) {
-    if (inviteError.message.toLowerCase().includes('already registered')) {
-      return { error: 'An account with this email already exists.' }
-    }
-    return { error: describeInviteError(inviteError) }
-  }
-
-  const newUserId = invited.user.id
+  const newUserId = invited.userId
 
   const { error: profileError } = await admin.from('profiles').insert({
     id: newUserId,
@@ -69,6 +61,7 @@ export async function createChampionAction(
     role: 'champion',
     club_id: clubId,
     is_active: true,
+    must_change_password: true,
   })
 
   if (profileError) {

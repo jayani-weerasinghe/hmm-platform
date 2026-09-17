@@ -122,6 +122,13 @@ export async function resetPasswordAction(
     entityId: user.id,
   })
 
+  // "Forgot Password" is a legitimate escape hatch for a Champion/Gatekeeper
+  // who lost their temp-password email — it must clear the same flag
+  // changePasswordAction does, or they'd still get forced to /set-password
+  // after a real reset (and then fail there, since their "temporary" and
+  // "new" password would be identical).
+  await supabase.from('profiles').update({ must_change_password: false }).eq('id', user.id)
+
   // Sign out the recovery session so the redirect below actually reaches the
   // login page instead of being bounced straight to the dashboard by
   // middleware's "authenticated user hitting /login" rule.
@@ -191,6 +198,16 @@ export async function changePasswordAction(
     entityType: 'user',
     entityId: user.id,
   })
+
+  // Clears the forced-first-login flag if it was set — a harmless no-op
+  // for the normal elective "change my password" flow (already false),
+  // but this is also the exact same action the forced /set-password screen
+  // calls after a Champion/Gatekeeper's temp password verifies correctly,
+  // so this one line is what actually lifts the block. Uses the regular
+  // authenticated client — same as everything else in this action — since
+  // must_change_password is deliberately not one of the columns the
+  // self-update-privileged-fields trigger pins.
+  await supabase.from('profiles').update({ must_change_password: false }).eq('id', user.id)
 
   // Scenario 07: keep this session active, but require re-authentication on
   // every other active session/device.

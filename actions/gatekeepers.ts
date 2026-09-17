@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { writeAuditLog } from '@/lib/audit'
-import { describeInviteError } from '@/lib/invite-errors'
+import { createInvitedUser } from '@/lib/create-invited-user'
 
 export type GatekeeperActionState = {
   error?: string
@@ -37,7 +37,6 @@ async function inviteAndCreateGatekeeper(params: {
   actorId: string
 }) {
   const admin = createAdminClient()
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
 
   const { data: existing } = await admin
     .from('profiles')
@@ -49,18 +48,13 @@ async function inviteAndCreateGatekeeper(params: {
   const { data: gkCode, error: codeError } = await admin.rpc('next_gatekeeper_code')
   if (codeError) return { error: codeError.message }
 
-  const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(params.email, {
-    data: { full_name: params.fullName },
-    redirectTo: `${siteUrl}/auth/callback?next=/reset-password`,
-  })
-  if (inviteError) {
-    if (inviteError.message.toLowerCase().includes('already registered')) {
-      return { error: 'An account with this email already exists.' }
-    }
-    return { error: describeInviteError(inviteError) }
-  }
+  // Creates the auth user with a system-generated temporary password and
+  // emails it directly (Supabase's own invite email can't embed a
+  // password) — see lib/create-invited-user.ts.
+  const invited = await createInvitedUser({ email: params.email, fullName: params.fullName, roleLabel: 'Gatekeeper' })
+  if ('error' in invited) return { error: invited.error }
 
-  const newUserId = invited.user.id
+  const newUserId = invited.userId
   const qprExpiryDate = threeYearsFrom(params.certificationDate)
 
   const { error: profileError } = await admin.from('profiles').insert({
@@ -75,6 +69,7 @@ async function inviteAndCreateGatekeeper(params: {
     qpr_expiry_date: qprExpiryDate,
     gatekeeper_code: gkCode,
     is_active: true,
+    must_change_password: true,
   })
 
   if (profileError) {

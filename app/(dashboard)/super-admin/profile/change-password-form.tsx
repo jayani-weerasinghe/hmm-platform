@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { changePasswordAction } from '@/actions/auth'
 import { checkPasswordRules } from '@/lib/password-validation'
 
@@ -66,7 +67,21 @@ function PasswordInput({
   )
 }
 
-export function ChangePasswordForm({ onClose }: { onClose?: () => void }) {
+export function ChangePasswordForm({
+  onClose,
+  mode = 'elective',
+  redirectTo,
+}: {
+  onClose?: () => void
+  // 'forced' is the first-login "Set Your Password" screen reached via
+  // must_change_password — same underlying changePasswordAction (it's the
+  // one that actually clears that flag on success), just different framing
+  // since there's nowhere for a "Cancel" button to go and success means an
+  // immediate redirect rather than closing a modal or showing a static card.
+  mode?: 'elective' | 'forced'
+  redirectTo?: string
+}) {
+  const router = useRouter()
   const [state, formAction, isPending] = useActionState(changePasswordAction, null)
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -76,11 +91,16 @@ export function ChangePasswordForm({ onClose }: { onClose?: () => void }) {
   const passwordsMatch = confirmPassword.length > 0 && newPassword === confirmPassword
 
   useEffect(() => {
-    if (state?.success && onClose) onClose()
+    if (!state?.success) return
+    if (mode === 'forced') {
+      router.push(redirectTo ?? '/login')
+      return
+    }
+    if (onClose) onClose()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state])
 
-  if (state?.success && !onClose) {
+  if (state?.success && mode !== 'forced' && !onClose) {
     return (
       <div className="mx-auto max-w-md rounded-2xl bg-white p-8 shadow-sm ring-1 ring-gray-200 text-center">
         <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-green-100 text-xl">✓</div>
@@ -97,12 +117,16 @@ export function ChangePasswordForm({ onClose }: { onClose?: () => void }) {
     <div className="mx-auto flex max-h-[90vh] w-full max-w-[672px] flex-col overflow-hidden rounded-2xl bg-white shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)] font-[family-name:var(--font-inter)]">
       <div className="flex items-start justify-between gap-4 px-6 pb-4 pt-6">
         <div className="flex flex-col gap-[3px]">
-          <h1 className="text-[18px] font-bold leading-7 tracking-[-0.22px] text-[#0F172A]">Change Account Password</h1>
+          <h1 className="text-[18px] font-bold leading-7 tracking-[-0.22px] text-[#0F172A]">
+            {mode === 'forced' ? 'Set Your Password' : 'Change Account Password'}
+          </h1>
           <p className="max-w-[480px] text-[13px] leading-[18px] text-[#475569]">
-            Update your administrative login credentials to maintain data security across the Healing Minds Matter portal.
+            {mode === 'forced'
+              ? 'Your account was created with a temporary password. Set a real password before continuing — you won’t be able to access anything else until you do.'
+              : 'Update your administrative login credentials to maintain data security across the Healing Minds Matter portal.'}
           </p>
         </div>
-        {onClose && (
+        {onClose && mode !== 'forced' && (
           <button
             type="button"
             onClick={onClose}
@@ -127,10 +151,10 @@ export function ChangePasswordForm({ onClose }: { onClose?: () => void }) {
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center justify-between">
                 <label htmlFor="currentPassword" className="text-[13px] font-medium tracking-[0.24px] text-[#0F172A]">
-                  Current Password <span className="text-[#DC2626]">*</span>
+                  {mode === 'forced' ? 'Temporary Password' : 'Current Password'} <span className="text-[#DC2626]">*</span>
                 </label>
                 <Link href="/forgot-password" className="text-[11px] font-semibold tracking-[0.44px] text-[#003495] hover:underline">
-                  Forgot current password?
+                  {mode === 'forced' ? "Didn't get one?" : 'Forgot current password?'}
                 </Link>
               </div>
               <PasswordInput id="currentPassword" name="currentPassword" icon="/icons/pw-key-field.svg" />
@@ -217,7 +241,7 @@ export function ChangePasswordForm({ onClose }: { onClose?: () => void }) {
         </div>
 
         <div className="flex items-center justify-end gap-2.5 border-t border-[#E2E8F0] px-6 py-4">
-          {onClose ? (
+          {mode === 'forced' ? null : onClose ? (
             <button
               type="button"
               onClick={onClose}
@@ -240,7 +264,7 @@ export function ChangePasswordForm({ onClose }: { onClose?: () => void }) {
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/icons/pw-update-btn-lock.svg" alt="" className="h-[15.75px] w-3" />
-            {isPending ? 'Updating…' : 'Update Password'}
+            {isPending ? 'Saving…' : mode === 'forced' ? 'Set Password' : 'Update Password'}
           </button>
         </div>
       </form>

@@ -49,19 +49,36 @@ export async function middleware(request: NextRequest) {
   const needsRole =
     user &&
     (pathname === '/login' || pathname === '/forgot-password' ||
-     pathname.startsWith('/super-admin') || pathname.startsWith('/champion'))
+     pathname.startsWith('/super-admin') || pathname.startsWith('/champion') ||
+     pathname === '/set-password')
 
   if (needsRole) {
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, must_change_password')
       .eq('id', user.id)
       .single()
 
     const destination = profile?.role === 'champion' ? '/champion' : '/super-admin'
+    const mustSetPassword = profile?.must_change_password === true
 
-    // Authenticated user hitting auth pages → send to their dashboard
+    // Authenticated user hitting auth pages → send to their dashboard, or
+    // to the forced password screen first if they haven't set a real
+    // password yet.
     if (pathname === '/login' || pathname === '/forgot-password') {
+      return NextResponse.redirect(new URL(mustSetPassword ? '/set-password' : destination, request.url))
+    }
+
+    // Forced first-login password change (Champions/Gatekeepers created
+    // with a temporary password) — blocks every dashboard route until
+    // must_change_password is cleared. /reset-password and /auth/* stay
+    // reachable throughout (PUBLIC_PREFIXES, checked earlier above) since
+    // "Forgot Password" is a legitimate way to satisfy this same
+    // requirement without knowing the temporary password.
+    if (mustSetPassword && pathname !== '/set-password') {
+      return NextResponse.redirect(new URL('/set-password', request.url))
+    }
+    if (!mustSetPassword && pathname === '/set-password') {
       return NextResponse.redirect(new URL(destination, request.url))
     }
 
