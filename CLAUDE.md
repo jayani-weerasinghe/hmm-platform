@@ -1268,6 +1268,128 @@ action (not just UI appearance), and fully deleted (including cascaded
 `audit_logs` rows) at the end, reconfirmed back to a clean baseline via
 direct DB query.
 
+## Login page — rebuilt to updated Figma, responsiveness fix — 2026-09-17
+
+Figma's login frame (node `1:22`, section `1:21` "sign in", file
+`K1Csx2BjbSmP9NRSDtoEe2`) had been revised since the original 2026-09-16
+`feature/login-redesign` build. Checked for the decoy/duplicate-frame issue
+that's bitten this session before (mislabeled/copy-pasted modals found
+under Champions, Clubs, Gatekeepers, Announcements, Permissions) — a full
+metadata dump of the file's only page found exactly one "sign in" section
+and one "Login" frame, so node `1:22` is confirmed current and non-decoy.
+Its inner content nodes carry a mix of old (`1:xx`) and much newer
+(`130:xx`, `128:xx`) IDs, confirming this frame really was edited in place
+rather than being a stale cached reference.
+
+**What changed and what was rebuilt** (`app/(auth)/login/login-form.tsx`):
+labels/input text/checkbox/"Keep me signed in"/"Forgot Password?" all went
+from 16px to 14px; the heading went from `font-extrabold` responsive
+28→38px to a flat `font-black` 34px; the subtitle now matches at 18px; the
+submit button dropped its responsive up-scaling and now sits at a flat
+16px/16px-padding; the checkbox shrank 22px→18px; form-section gaps were
+restructured to match the new spec exactly (24px between the two fields,
+9px down to the checkbox/forgot row, 60px down to the submit button,
+replacing the old uniform gap). Figma also added a password
+show/hide-eye icon that didn't exist on the live page before — added,
+reusing the existing `/icons/pw-eye.svg` / `pw-eye-off.svg` pair already
+established by the Change Password modal rather than pulling in Figma's
+own `basil:eye-closed-outline` asset as a new icon file.
+**Deliberately not copied from Figma**: the heading text itself
+("Login"/"For Super Admin" in the current Figma copy) — left as "Sign
+in"/"For Super Admins and Champions.", since the Champion Web Portal
+means this is genuinely a shared two-role login page now, not a
+Super-Admin-only screen; Figma's copy predates that and was never
+accurate even before this update.
+
+**Illustration image** (`public/images/login-illustration.png`): re-cropped
+from a fresh Figma screenshot export of the whole `1:22` frame (the
+composition — tagline text, logo badge, photo/blob collage — changed
+enough between revisions that patching the old asset wasn't an option).
+The frame's own outer 30px corner radius bled through as small gray
+corner-artifact triangles on the flattened PNG export (Figma renders the
+canvas-background color outside a rounded frame's corners rather than
+transparency) — masked those out with a matching rounded-corner alpha mask
+before committing the new asset, rather than shipping the export as-is.
+
+**Responsiveness bug (the actual reason this needed more than a copy-paste
+image swap)**: `AuthIllustrationPanel` was a plain `flex-1` box holding the
+image at `object-cover object-top` — at any viewport where the panel's
+available aspect ratio drifted far enough from the image's native 711:900
+portrait ratio (mainly short-height laptop viewports), object-cover was
+forced to crop hard enough to cut the tagline text or the logo badge
+outright, since both sit near opposite edges of the image and there's no
+single `object-position` that protects both at once. Root-caused this by
+reproducing it live (a 1024×563 viewport clipped "Brighter" and "Happier"
+down to just "Minds"/"Tomorrows"). Fixed by locking the image's own
+container to `aspect-[711/900]` with `h-full max-w-full` — the box always
+shrinks to fit whichever of height/width is the binding constraint while
+keeping the exact image ratio, so `object-cover` has nothing left to crop;
+any leftover flex space just shows the panel's own matching `#FFF8EE`
+background, invisibly. Verified live across the achievable range in this
+session's browser-automation environment (viewports from roughly
+1280×533 up to 1800×1054, several short-height cases in between) — no
+cropping on either the form side or the image side at any of them.
+**Environment note for future sessions**: `resize_window` in this Chrome
+automation session only takes effect reliably on a tab's *first* call
+after creation/navigation — later resize calls on the same tab silently
+no-op (viewport stays pinned to whatever the first successful resize set).
+Work around it by opening a fresh tab per target size rather than
+resizing one tab repeatedly. This session's virtual display also hard-caps
+window bounds around 1800×1169, so a literal 2560×1440 "large monitor" test
+wasn't reachable — the ~1800×1054 case was used as the closest available
+proxy; the fix itself has no viewport-specific constants, so there's no
+reason to expect it to behave differently at true 2560+ widths, but this
+wasn't independently confirmed.
+
+## Bug fix — bad club_id on gatekeeper creation surfaced a raw Postgres error — 2026-09-17
+
+User-reported: bulk-CSV gatekeeper creation on a row with a bad `club_id`
+showed `insert or update on table "profiles" violates foreign key
+constraint "profiles_club_id_fkey"` directly in the per-row results table.
+Root cause: `inviteAndCreateGatekeeper` (`actions/gatekeepers.ts`, shared by
+both the single-gatekeeper form and the bulk CSV path) never validated
+`club_id` before using it — the bulk path in particular takes it as a raw
+CSV cell, typed/pasted by whoever built the file, with no dropdown to
+constrain it. A bad value only ever surfaced when the final `profiles`
+insert hit the FK constraint, and the raw Postgres message was relayed to
+the UI as-is (`error: profileError.message`).
+
+**Worse than just an ugly message**: `createInvitedUser()` — which creates
+the real auth user *and sends the temp-password invite email* — runs
+*before* the `profiles` insert. So on this failure path, a real email with
+a real temporary password had already been sent to the row's email address
+before the insert failed and the auth user got rolled back
+(`admin.auth.admin.deleteUser`) — the recipient got working-looking
+credentials for an account that no longer exists by the time they read the
+email.
+
+**Fix**: added a `clubs` lookup (`select name, is_active … eq('id',
+clubId)`) immediately after the existing-email check, before
+`next_gatekeeper_code()` or `createInvitedUser()` run at all. Covers both
+failure shapes verified live against the DB — a well-formed but
+non-existent UUID (empty result) and a malformed one, e.g. garbage CSV text
+(a `22P02 invalid input syntax for type uuid` from Postgres) — both now
+return `"The selected club could not be found. Double-check the club_id
+and try again."` (or an inactive-club-specific message) before any auth
+user is created or email sent. Also added a `profileError.code === '23503'`
+fallback on the later insert itself, translating any FK violation that
+might still slip through into a readable message instead of the raw
+constraint text, as a backstop.
+**Not changed**: `updateGatekeeperAction`'s `club_id` write — it comes from
+a `<select>` dropdown (not free-typed CSV) and goes through the
+RLS-enforced authenticated client rather than the service-role admin
+client, so the same class of bad-input risk doesn't apply there the same
+way; left as-is rather than fixing something not actually reported broken.
+
+**On the "still got a 200 response" observation from the same report**:
+expected, not a bug — this is the exact same Next.js Server Actions
+behavior already documented under the Epic 1 2026-09-14 note ("Next.js
+Server Actions always return 200 at the transport layer... this is
+intentional Next.js behavior"). The real error already was being caught
+and shown correctly (that's why the raw Postgres message was visible in
+the per-row results at all) — the 200 in the network tab was never a sign
+the error was missed.
+
 ### Not started yet
 - Everything on the Gatekeeper mobile app — BLOCKED until Gatekeeper user
   stories exist, and until the web app's core features are further along.

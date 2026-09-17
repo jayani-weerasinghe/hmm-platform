@@ -45,6 +45,26 @@ async function inviteAndCreateGatekeeper(params: {
     .maybeSingle()
   if (existing) return { error: 'An account with this email already exists.' }
 
+  // Validate club_id BEFORE creating the auth user / sending the invite
+  // email below — clubId reaches here as a raw string typed into a CSV
+  // cell (bulk upload) or read straight off form data (single create), so
+  // it's never guaranteed to be a real club. Without this check, a bad ID
+  // only surfaces as a raw Postgres FK-violation message on the later
+  // profiles insert, by which point the invite email (with a real temp
+  // password) has already been sent for an account that's about to be
+  // rolled back.
+  const { data: club, error: clubLookupError } = await admin
+    .from('clubs')
+    .select('name, is_active')
+    .eq('id', params.clubId)
+    .maybeSingle()
+  if (clubLookupError || !club) {
+    return { error: 'The selected club could not be found. Double-check the club_id and try again.' }
+  }
+  if (!club.is_active) {
+    return { error: `Club "${club.name}" is currently inactive. Reactivate it first or choose a different club.` }
+  }
+
   const { data: gkCode, error: codeError } = await admin.rpc('next_gatekeeper_code')
   if (codeError) return { error: codeError.message }
 
@@ -74,6 +94,12 @@ async function inviteAndCreateGatekeeper(params: {
 
   if (profileError) {
     await admin.auth.admin.deleteUser(newUserId)
+    // The club_id check above should catch this ahead of time, but fall
+    // back to a readable message instead of relaying a raw Postgres
+    // constraint name if some other FK slips through here in the future.
+    if (profileError.code === '23503') {
+      return { error: 'Could not save this gatekeeper — one of the referenced records (e.g. the club) no longer exists.' }
+    }
     return { error: profileError.message }
   }
 
