@@ -18,13 +18,17 @@ function todayInputValue() {
 
 export function CreateEventForm({
   clubs,
+  lockedClub,
+  fallbackPath = '/super-admin/events',
   onClose,
 }: {
   clubs: { id: string; name: string }[]
+  lockedClub?: { id: string; name: string }
+  fallbackPath?: string
   onClose?: () => void
 }) {
   const router = useRouter()
-  const close = onClose ?? (() => router.push('/super-admin/events'))
+  const close = onClose ?? (() => router.push(fallbackPath))
   const [state, formAction, isPending] = useActionState(createEventAction, null)
   const [type, setType] = useState('qpr_session')
 
@@ -146,20 +150,30 @@ export function CreateEventForm({
                 <label htmlFor="club_id" className="mb-1.5 block text-[13px] font-medium tracking-[0.24px] text-[#0F172A]">
                   Assigned Club <span className="text-[#DC2626]">*</span>
                 </label>
-                <div className="relative">
-                  <select
-                    id="club_id"
-                    name="club_id"
-                    required
-                    defaultValue=""
-                    className="h-10 w-full appearance-none rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 pr-9 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
-                  >
-                    <option value="" disabled>Select an active club…</option>
-                    {clubs.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="/icons/chevron-down.svg" alt="" className="pointer-events-none absolute right-3.5 top-1/2 h-[6px] w-[9px] -translate-y-1/2" />
-                </div>
+                {lockedClub ? (
+                  <>
+                    <input type="hidden" name="club_id" value={lockedClub.id} />
+                    <div className="flex h-10 items-center gap-2 rounded-lg border border-[#E2E8F0] bg-[#EFF4FF] px-3.5">
+                      <span className="text-sm font-semibold text-[#0F172A]">{lockedClub.name}</span>
+                      <span className="ml-auto text-[11px] text-[#64748B]">Your club</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="relative">
+                    <select
+                      id="club_id"
+                      name="club_id"
+                      required
+                      defaultValue=""
+                      className="h-10 w-full appearance-none rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 pr-9 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
+                    >
+                      <option value="" disabled>Select an active club…</option>
+                      {clubs.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/icons/chevron-down.svg" alt="" className="pointer-events-none absolute right-3.5 top-1/2 h-[6px] w-[9px] -translate-y-1/2" />
+                  </div>
+                )}
               </div>
               <div>
                 <label htmlFor="facilitator" className="mb-1.5 block text-[13px] font-medium tracking-[0.24px] text-[#0F172A]">

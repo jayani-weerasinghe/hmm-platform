@@ -18,7 +18,15 @@ function formatDate(value: string) {
   return new Date(value).toLocaleDateString('en-AU', { dateStyle: 'medium' })
 }
 
-export function AnnouncementCard({ announcement: a }: { announcement: AnnouncementCardData }) {
+export function AnnouncementCard({
+  announcement: a,
+  basePath = '/super-admin/announcements',
+  canManage = true,
+}: {
+  announcement: AnnouncementCardData
+  basePath?: string
+  canManage?: boolean
+}) {
   const status = computeStatus(a.status, a.publish_date, a.expiry_date)
   const priorityBadge = PRIORITY_BADGE[a.priority]
   const audienceText = a.audience === 'specific_clubs' && a.club_name
@@ -54,19 +62,21 @@ export function AnnouncementCard({ announcement: a }: { announcement: Announceme
         <p className="line-clamp-2 text-[14px] leading-5 text-[#475569]">{a.body}</p>
       </div>
 
-      <div className="flex items-center justify-between pt-1">
-        <div className="flex items-center gap-2">
-          <Link
-            href={`/super-admin/announcements/${a.id}/edit`}
-            className="flex items-center gap-1.5 rounded-lg bg-white px-4 py-2 text-[11px] font-semibold tracking-[0.44px] text-[#0F172A] shadow-[0px_1px_1px_rgba(0,0,0,0.05)] ring-1 ring-[#E2E8F0] transition-colors hover:bg-slate-50"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/icons/pencil.svg" alt="" width={12} height={12} />
-            Edit
-          </Link>
-          <AnnouncementDeleteButton announcementId={a.id} />
+      {canManage && (
+        <div className="flex items-center justify-between pt-1">
+          <div className="flex items-center gap-2">
+            <Link
+              href={`${basePath}/${a.id}/edit`}
+              className="flex items-center gap-1.5 rounded-lg bg-white px-4 py-2 text-[11px] font-semibold tracking-[0.44px] text-[#0F172A] shadow-[0px_1px_1px_rgba(0,0,0,0.05)] ring-1 ring-[#E2E8F0] transition-colors hover:bg-slate-50"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/icons/pencil.svg" alt="" width={12} height={12} />
+              Edit
+            </Link>
+            <AnnouncementDeleteButton announcementId={a.id} />
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

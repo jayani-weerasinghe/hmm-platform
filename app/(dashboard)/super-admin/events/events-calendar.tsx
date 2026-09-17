@@ -43,6 +43,9 @@ interface Props {
   generatedAt: string
   upcomingQpr: EventItem[]
   upcomingQprTotal: number
+  basePath?: string
+  newEventHref?: string
+  manageClubId?: string | null
 }
 
 const EVENT_TYPES = [
@@ -61,7 +64,7 @@ function ymd(d: Date) {
   return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() }
 }
 
-export function EventsCalendar({ view, year, month, day, club, type, q, events, clubs, typeCounts, totalCount, selectedEvent, generatedAt, upcomingQpr, upcomingQprTotal }: Props) {
+export function EventsCalendar({ view, year, month, day, club, type, q, events, clubs, typeCounts, totalCount, selectedEvent, generatedAt, upcomingQpr, upcomingQprTotal, basePath = '/super-admin/events', newEventHref, manageClubId = null }: Props) {
   const router = useRouter()
 
   function hrefWith(overrides: Partial<{ view: string; year: string; month: string; day: string; club: string; type: string; q: string; event: string }>) {
@@ -84,7 +87,7 @@ export function EventsCalendar({ view, year, month, day, club, type, q, events, 
     if (merged.type) params.set('type', merged.type)
     if (merged.q) params.set('q', merged.q)
     if (merged.event) params.set('event', merged.event)
-    return `/super-admin/events?${params.toString()}`
+    return `${basePath}?${params.toString()}`
   }
 
   const today = new Date()
@@ -142,7 +145,7 @@ export function EventsCalendar({ view, year, month, day, club, type, q, events, 
           </p>
         </div>
         <Link
-          href="/super-admin/events/new"
+          href={newEventHref ?? `${basePath}/new`}
           className="flex flex-shrink-0 items-center gap-2 rounded-lg bg-[#F4AC1E] px-4 py-2 text-[12px] font-semibold tracking-[0.24px] text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F]"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -255,7 +258,13 @@ export function EventsCalendar({ view, year, month, day, club, type, q, events, 
 
       <UpcomingQprSection events={upcomingQpr} total={upcomingQprTotal} />
 
-      {selectedEvent && <EventDetailPanel event={selectedEvent} closeHref={hrefWith({ event: '' })} />}
+      {selectedEvent && (
+        <EventDetailPanel
+          event={selectedEvent}
+          closeHref={hrefWith({ event: '' })}
+          editHref={manageClubId && selectedEvent.club_id === manageClubId ? `${basePath}/${selectedEvent.id}/edit` : undefined}
+        />
+      )}
     </div>
   )
 }

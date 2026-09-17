@@ -7,14 +7,14 @@ const RESOURCE_TYPE_LABEL_PLURAL: Record<string, string> = {
   other: 'Other',
 }
 
-function buildHref(params: { q?: string; category?: string; sort?: string; type?: string }) {
+function buildHref(basePath: string, params: { q?: string; category?: string; sort?: string; type?: string }) {
   const usp = new URLSearchParams()
   if (params.q) usp.set('q', params.q)
   if (params.category) usp.set('category', params.category)
   if (params.sort) usp.set('sort', params.sort)
   if (params.type) usp.set('type', params.type)
   const qs = usp.toString()
-  return qs ? `/super-admin/resources?${qs}` : '/super-admin/resources'
+  return qs ? `${basePath}?${qs}` : basePath
 }
 
 // Segmented type filter with real counts computed from the full dataset
@@ -28,6 +28,7 @@ export function ResourceTypeTabs({
   q,
   category,
   sort,
+  basePath = '/super-admin/resources',
 }: {
   active?: string
   counts: Record<string, number>
@@ -35,6 +36,7 @@ export function ResourceTypeTabs({
   q?: string
   category?: string
   sort?: string
+  basePath?: string
 }) {
   const tabs = [
     { value: undefined, label: `All (${total})` },
@@ -51,7 +53,7 @@ export function ResourceTypeTabs({
         return (
           <Link
             key={tab.label}
-            href={buildHref({ q, category, sort, type: tab.value })}
+            href={buildHref(basePath, { q, category, sort, type: tab.value })}
             className={`flex items-center justify-center whitespace-nowrap rounded-[5px] px-4 py-1.5 text-[12px] font-semibold tracking-[0.24px] transition-colors ${
               isActive ? 'bg-[#022C51] text-white' : 'text-[#475569] hover:bg-white/60'
             }`}

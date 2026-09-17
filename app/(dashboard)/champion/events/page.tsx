@@ -1,0 +1,101 @@
+import { redirect } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
+import { EventsCalendar } from '@/app/(dashboard)/super-admin/events/events-calendar'
+import { monthGridRange, weekRange } from '@/app/(dashboard)/super-admin/events/date-grid'
+
+export const metadata = { title: 'Events & Calendar — HMM Champion' }
+
+export default async function ChampionEventsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ view?: string; year?: string; month?: string; day?: string; club?: string; type?: string; q?: string; event?: string }>
+}) {
+  const sp = await searchParams
+  const view: 'month' | 'week' | 'agenda' = sp.view === 'week' ? 'week' : sp.view === 'agenda' ? 'agenda' : 'month'
+  const now = new Date()
+  const year = sp.year ? parseInt(sp.year, 10) : now.getUTCFullYear()
+  const month = sp.month ? parseInt(sp.month, 10) : now.getUTCMonth() + 1
+  const day = sp.day ? parseInt(sp.day, 10) : now.getUTCDate()
+  const clubFilter = sp.club || ''
+  const typeFilter = sp.type || ''
+  const q = sp.q || ''
+  const selectedEventId = sp.event || ''
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data: profile } = await supabase.from('profiles').select('club_id').eq('id', user.id).single()
+  if (!profile?.club_id) redirect('/champion')
+
+  const { data: clubs } = await supabase.from('clubs').select('id, name').order('name')
+  const clubNameById = Object.fromEntries((clubs ?? []).map(c => [c.id, c.name]))
+
+  const EVENT_COLUMNS = 'id, title, type, starts_at, ends_at, venue, description, max_participants, club_id, facilitator, virtual_link'
+
+  // Shared platform-wide calendar (Story 6.1: "not limited to their own
+  // club") — same read-all scope as Super Admin, just a different basePath
+  // and edit/cancel capability scoped to the Champion's own club.
+  let eventsQuery = supabase
+    .from('events')
+    .select(EVENT_COLUMNS)
+    .eq('is_cancelled', false)
+    .order('starts_at', { ascending: true })
+
+  if (view === 'month') {
+    const { gridStart, gridEnd } = monthGridRange(year, month)
+    const gridEndExclusive = new Date(gridEnd)
+    gridEndExclusive.setUTCDate(gridEndExclusive.getUTCDate() + 1)
+    eventsQuery = eventsQuery.gte('starts_at', gridStart.toISOString()).lt('starts_at', gridEndExclusive.toISOString())
+  } else if (view === 'week') {
+    const { start, end } = weekRange(new Date(Date.UTC(year, month - 1, day)))
+    const endExclusive = new Date(end)
+    endExclusive.setUTCDate(endExclusive.getUTCDate() + 1)
+    eventsQuery = eventsQuery.gte('starts_at', start.toISOString()).lt('starts_at', endExclusive.toISOString())
+  }
+  if (clubFilter) eventsQuery = eventsQuery.eq('club_id', clubFilter)
+  if (typeFilter) eventsQuery = eventsQuery.eq('type', typeFilter)
+  if (q) eventsQuery = eventsQuery.or(`title.ilike.%${q}%,venue.ilike.%${q}%`)
+
+  const [{ data: events }, { data: allForCounts }] = await Promise.all([
+    eventsQuery,
+    supabase.from('events').select('type').eq('is_cancelled', false),
+  ])
+
+  const eventsWithClub = (events ?? []).map(e => ({ ...e, club_name: clubNameById[e.club_id] ?? '—' }))
+
+  const typeCounts: Record<string, number> = {}
+  for (const e of allForCounts ?? []) typeCounts[e.type] = (typeCounts[e.type] ?? 0) + 1
+
+  let selectedEvent = null
+  if (selectedEventId) {
+    const { data } = await supabase
+      .from('events')
+      .select(EVENT_COLUMNS)
+      .eq('id', selectedEventId)
+      .maybeSingle()
+    if (data) selectedEvent = { ...data, club_name: clubNameById[data.club_id] ?? '—' }
+  }
+
+  return (
+    <EventsCalendar
+      view={view}
+      year={year}
+      month={month}
+      day={day}
+      club={clubFilter}
+      type={typeFilter}
+      q={q}
+      events={eventsWithClub}
+      clubs={clubs ?? []}
+      typeCounts={typeCounts}
+      totalCount={(allForCounts ?? []).length}
+      selectedEvent={selectedEvent}
+      generatedAt={now.toISOString()}
+      upcomingQpr={[]}
+      upcomingQprTotal={0}
+      basePath="/champion/events"
+      manageClubId={profile.club_id}
+    />
+  )
+}
