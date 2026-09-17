@@ -1133,6 +1133,112 @@ Admin-side directory/CRUD screen built anyway, at `/super-admin/gatekeepers`.
   live post-refactor (opened, confirmed identical rendering, cancelled
   without submitting — it's the real admin's own account, not a test one).
 
+## Temporary-password account creation + forced first-login change — 2026-09-17, branch `feature/temp-password-first-login`
+
+Champion and Gatekeeper account creation (Epic 8's `createChampionAction`,
+and the shared `inviteAndCreateGatekeeper` behind both single and bulk-CSV
+Gatekeeper creation) no longer uses Supabase's `inviteUserByEmail` magic-link
+flow. Both now generate a system temporary password and email it directly
+alongside a plain `/login` link, and the account is locked behind a forced
+"Set Your Password" screen until a real password is set. Checked first
+whether this conflicts with any already-logged "must-change-password" gap
+in this file — **it doesn't**: no such gap was previously documented under
+that name anywhere in this log. The closest related item is the Epic 1 note
+that password-changed *confirmation* emails weren't being sent — a
+different, narrower gap (a notification after an already-elective change),
+not a forced-first-login requirement, and it's unaffected by this change.
+
+**Why this needed a real architecture decision, not just a config change**:
+Supabase's own invite/magic-link email templates have no way to embed
+arbitrary custom content like a generated password — they only support the
+confirmation URL and a few fixed fields. Retrieving the SendGrid key already
+configured inside Supabase's SMTP settings for reuse was considered and
+rejected — tested directly against SendGrid's `/v3/scopes` endpoint and
+confirmed Supabase's Management API returns a masked/non-functional
+placeholder for `smtp_pass` on GET, not the real key. Flagged this to the
+user, who provided a fresh, real SendGrid API key (confirmed live, `mail.send`
+scope) to add to this app's own `.env.local` as `SENDGRID_API_KEY` — a
+deliberate, explicit exception to the earlier documented decision to keep
+provider keys inside Supabase's config only, scoped narrowly to this one new
+email type. Every other transactional email in this app (password-changed
+notifications, the reset-password link itself) still goes through Supabase's
+existing SMTP config unchanged.
+
+**What was built**:
+- `lib/generate-temp-password.ts` — 12-char temp password, guaranteed to
+  satisfy `validatePassword`'s own rules (one of each required character
+  class, not left to chance), excluding visually-ambiguous characters since
+  it's read from an email and typed in.
+- `lib/send-email.ts` — direct SendGrid Web API call (not Supabase's
+  SMTP-relayed mailer), reusing the same verified Single Sender
+  (`jayani@ensiz.com`) already configured for Supabase's own emails.
+- `lib/create-invited-user.ts` — the one shared implementation for both
+  Champion and Gatekeeper creation (previously each called
+  `inviteUserByEmail` independently with the same shape but no shared
+  code): creates the auth user via `admin.auth.admin.createUser()` with the
+  temp password, sends the custom email, and rolls back (deletes the auth
+  user) if the email send fails — preserving the existing "no orphaned
+  `auth.users` row on failure" invariant. Also seeds `password_history`
+  with the temp password's hash (new `seedPasswordHistoryAdmin` in
+  `lib/password-history.server.ts`) so the existing reuse check correctly
+  rejects "changing" to the exact same temporary password.
+- New `profiles.must_change_password` column (migration
+  `20260917000000_add_must_change_password.sql`), set `true` on creation.
+  Deliberately left out of the `protect_profile_privileged_fields` trigger
+  (unlike `role`/`club_id`/`is_active`) — a self-authored bypass of this
+  flag only weakens that one user's own account security, not a
+  privilege-escalation vector like the fields that trigger does protect, so
+  the added complexity of routing its clearing through the admin client
+  wasn't justified.
+- `middleware.ts` now also fetches `must_change_password` alongside `role`
+  and force-redirects any authenticated request to `/set-password` until
+  it's cleared — `/reset-password` and `/auth/*` stay reachable throughout
+  so "Forgot Password" remains a valid escape hatch for a user who lost the
+  temp-password email; `resetPasswordAction` now also clears the flag
+  (mirroring `changePasswordAction`) so that path doesn't leave a user
+  stuck looping back to `/set-password` after a real reset.
+- `/set-password` (new, top-level route — deliberately **not** under the
+  `(auth)` route group, whose narrow 411px two-panel layout doesn't fit
+  this form's richer content) reuses `ChangePasswordForm` via a new
+  `mode="forced"` variant rather than a parallel implementation: same
+  validation, reuse-check, and audit-log logic as the existing elective
+  Change Password flow, just different copy, no Cancel button (nowhere to
+  go), and a redirect to the user's dashboard on success instead of closing
+  a modal.
+
+**Known, accepted limitation — flagged, not fixed**: Gatekeepers are
+mobile-only (`loginAction` explicitly blocks `role='gatekeeper'` from the
+web app, signing them out immediately), and no Gatekeeper mobile app exists
+in this repo yet. So while Gatekeeper account creation now genuinely
+generates a temp password, emails it, and sets `must_change_password`
+correctly (verified directly via the DB), the actual login + forced-screen
+behavior can only be exercised for Champions in this repo today — the same
+pre-existing limitation already documented elsewhere in this file for
+Gatekeeper login-blocking in general. This will need an equivalent forced
+first-login screen built into the mobile app once one exists.
+
+**Verified end-to-end** with a throwaway test Champion
+(`zz-test-temp-password@example.com`): created via the real Super Admin UI,
+temp password captured via a temporary debug log (removed immediately
+after, never committed) rather than real inbox access (the test address
+isn't a real mailbox), confirmed `must_change_password=true` and a seeded
+`password_history` row via direct DB query, logged in with the temp
+password and confirmed the forced screen appeared with **no** Cancel
+button and **no** sidebar, confirmed direct navigation to both
+`/champion` and `/super-admin` bounced back to `/set-password` (real
+navigation-blocking, not just a UI suggestion), set a real password,
+confirmed auto-redirect to `/champion` with full sidebar access restored,
+and directly verified via Supabase's own token endpoint that the old
+temp password now returns `invalid_credentials` while the new password
+returns a real access token. Also smoke-tested Gatekeeper creation through
+the same shared flow (confirmed `must_change_password`, `gatekeeper_code`,
+and `password_history` all correct via direct DB query) and
+regression-checked the existing elective "Change Password" modal
+afterward (Super Admin's own account, opened and cancelled without
+submitting) — unaffected by the `mode` prop addition. All test
+accounts and their audit-log rows deleted afterward, reconfirmed via
+direct DB query.
+
 ### Not started yet
 - Everything on the Champion side (Gatekeeper management, Champion
   dashboard, events, announcements, resource access) — BLOCKED until
