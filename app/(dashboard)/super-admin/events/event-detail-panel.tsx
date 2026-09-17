@@ -1,5 +1,10 @@
+'use client'
+
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { useState, useTransition } from 'react'
 import { eventTypeStyle } from './event-type'
+import { cancelEventAction } from '@/actions/events'
 
 interface EventDetail {
   id: string
@@ -24,13 +29,20 @@ function Field({ label, value }: { label: string; value: string }) {
   )
 }
 
-export function EventDetailPanel({ event, closeHref }: { event: EventDetail; closeHref: string }) {
+// editHref is only passed when the viewer manages this event's club (a
+// Champion, for their own club's events) — Super Admin's calendar remains
+// view-only, matching Story 6.1's original scope.
+export function EventDetailPanel({ event, closeHref, editHref }: { event: EventDetail; closeHref: string; editHref?: string }) {
   const style = eventTypeStyle(event.type)
   const starts = new Date(event.starts_at)
   const dateLabel = starts.toLocaleDateString('en-AU', { dateStyle: 'full' })
   const timeLabel = event.ends_at
     ? `${starts.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })} – ${new Date(event.ends_at).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}`
     : starts.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })
+
+  const [confirmCancel, setConfirmCancel] = useState(false)
+  const [isPending, startTransition] = useTransition()
+  const router = useRouter()
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(86,86,86,0.41)] p-4 backdrop-blur-sm font-[family-name:var(--font-inter)]">
@@ -69,6 +81,54 @@ export function EventDetailPanel({ event, closeHref }: { event: EventDetail; clo
           <div className="mt-4">
             <dt className="text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">Description</dt>
             <dd className="mt-1 whitespace-pre-wrap text-[14px] leading-5 text-[#0F172A]">{event.description}</dd>
+          </div>
+        )}
+
+        {editHref && (
+          <div className="mt-5 flex items-center justify-end gap-2.5 border-t border-[#E2E8F0] pt-4">
+            {confirmCancel ? (
+              <>
+                <span className="mr-auto text-[12px] text-[#475569]">Cancel this event?</span>
+                <button
+                  type="button"
+                  onClick={() => setConfirmCancel(false)}
+                  className="flex h-9 items-center rounded-lg bg-[#F1F5F9] px-3.5 text-[13px] font-medium text-[#0F172A] transition-colors hover:bg-[#E2E8F0]"
+                >
+                  No
+                </button>
+                <form
+                  action={(fd) => startTransition(async () => {
+                    const result = await cancelEventAction(null, fd)
+                    if (result?.success) router.push(closeHref)
+                  })}
+                >
+                  <input type="hidden" name="event_id" value={event.id} />
+                  <button
+                    type="submit"
+                    disabled={isPending}
+                    className="flex h-9 items-center rounded-lg bg-[#DC2626] px-3.5 text-[13px] font-semibold text-white transition-colors hover:bg-[#B91C1C] disabled:opacity-60"
+                  >
+                    {isPending ? 'Cancelling…' : 'Yes, Cancel Event'}
+                  </button>
+                </form>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setConfirmCancel(true)}
+                  className="flex h-9 items-center rounded-lg border border-[#FECACA] bg-white px-3.5 text-[13px] font-semibold text-[#DC2626] transition-colors hover:bg-[#FEF2F2]"
+                >
+                  Cancel Event
+                </button>
+                <Link
+                  href={editHref}
+                  className="flex h-9 items-center gap-1.5 rounded-lg bg-[#F4AC1E] px-4 text-[13px] font-semibold text-white transition-colors hover:bg-[#E09B0F]"
+                >
+                  Edit Event
+                </Link>
+              </>
+            )}
           </div>
         )}
       </div>

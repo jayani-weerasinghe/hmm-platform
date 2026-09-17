@@ -30,6 +30,34 @@ function validate(fields: ReturnType<typeof readFields>): string | null {
   return null
 }
 
+// The Champion insert/update RLS policies require club_id = their own club
+// on every row, unlike Super Admin who can post platform-wide (club_id NULL)
+// or to any specific club. A Champion's announcements are therefore always
+// genuinely single-club — audience is forced to 'specific_clubs' (an honest
+// description, not a fabricated one) and club_id to their own, regardless of
+// what the Champion-only create/edit form submits (it exposes no
+// audience/club picker at all, matching the literal requirement scope).
+async function resolveAnnouncementScope(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  fields: { audience: string; clubId: string | null }
+): Promise<{ audience: string; clubId: string | null } | { error: string }> {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data: caller } = await supabase
+    .from('profiles')
+    .select('role, club_id')
+    .eq('id', user.id)
+    .single()
+
+  if (caller?.role === 'champion') {
+    if (!caller.club_id) return { error: 'Your account has no assigned club.' }
+    return { audience: 'specific_clubs', clubId: caller.club_id }
+  }
+
+  return { audience: fields.audience, clubId: fields.audience === 'specific_clubs' ? fields.clubId : null }
+}
+
 export async function createAnnouncementAction(
   _prev: AnnouncementActionState,
   formData: FormData
@@ -42,6 +70,9 @@ export async function createAnnouncementAction(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  const scope = await resolveAnnouncementScope(supabase, { audience: fields.audience, clubId: fields.clubId })
+  if ('error' in scope) return { error: scope.error }
+
   const { data: announcement, error } = await supabase
     .from('announcements')
     .insert({
@@ -50,8 +81,8 @@ export async function createAnnouncementAction(
       publish_date: fields.publishDate,
       expiry_date: fields.expiryDate,
       priority: fields.priority,
-      audience: fields.audience,
-      club_id: fields.audience === 'specific_clubs' ? fields.clubId : null,
+      audience: scope.audience,
+      club_id: scope.clubId,
       status: fields.intent === 'draft' ? 'draft' : 'published',
       created_by: user.id,
     })
@@ -65,10 +96,11 @@ export async function createAnnouncementAction(
     action: 'announcement.created',
     entityType: 'announcement',
     entityId: announcement.id,
-    details: { title: fields.title, publish_date: fields.publishDate, priority: fields.priority, audience: fields.audience, status: fields.intent === 'draft' ? 'draft' : 'published' },
+    details: { title: fields.title, publish_date: fields.publishDate, priority: fields.priority, audience: scope.audience, status: fields.intent === 'draft' ? 'draft' : 'published' },
   })
 
   revalidatePath('/super-admin/announcements')
+  revalidatePath('/champion/announcements')
   return { success: true }
 }
 
@@ -85,6 +117,9 @@ export async function updateAnnouncementAction(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  const scope = await resolveAnnouncementScope(supabase, { audience: fields.audience, clubId: fields.clubId })
+  if ('error' in scope) return { error: scope.error }
+
   const { error } = await supabase
     .from('announcements')
     .update({
@@ -93,8 +128,8 @@ export async function updateAnnouncementAction(
       publish_date: fields.publishDate,
       expiry_date: fields.expiryDate,
       priority: fields.priority,
-      audience: fields.audience,
-      club_id: fields.audience === 'specific_clubs' ? fields.clubId : null,
+      audience: scope.audience,
+      club_id: scope.clubId,
       status: fields.intent === 'draft' ? 'draft' : 'published',
     })
     .eq('id', announcementId)
@@ -106,10 +141,11 @@ export async function updateAnnouncementAction(
     action: 'announcement.updated',
     entityType: 'announcement',
     entityId: announcementId,
-    details: { title: fields.title, publish_date: fields.publishDate, priority: fields.priority, audience: fields.audience },
+    details: { title: fields.title, publish_date: fields.publishDate, priority: fields.priority, audience: scope.audience },
   })
 
   revalidatePath('/super-admin/announcements')
+  revalidatePath('/champion/announcements')
   return { success: true }
 }
 
@@ -131,4 +167,5 @@ export async function deleteAnnouncementAction(formData: FormData) {
   })
 
   revalidatePath('/super-admin/announcements')
+  revalidatePath('/champion/announcements')
 }

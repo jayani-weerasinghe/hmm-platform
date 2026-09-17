@@ -71,6 +71,7 @@ export function ChangePasswordForm({
   onClose,
   mode = 'elective',
   redirectTo,
+  profilePath = '/super-admin/profile',
 }: {
   onClose?: () => void
   // 'forced' is the first-login "Set Your Password" screen reached via
@@ -80,6 +81,7 @@ export function ChangePasswordForm({
   // immediate redirect rather than closing a modal or showing a static card.
   mode?: 'elective' | 'forced'
   redirectTo?: string
+  profilePath?: string
 }) {
   const router = useRouter()
   const [state, formAction, isPending] = useActionState(changePasswordAction, null)
@@ -108,7 +110,7 @@ export function ChangePasswordForm({
         <p className="mb-6 text-sm text-gray-500">
           Your password has been updated. If you did not make this change, please contact support immediately.
         </p>
-        <Link href="/super-admin/profile" className="text-sm text-blue-600 hover:text-blue-700">← Back to profile</Link>
+        <Link href={profilePath} className="text-sm text-blue-600 hover:text-blue-700">← Back to profile</Link>
       </div>
     )
   }
@@ -251,7 +253,7 @@ export function ChangePasswordForm({
             </button>
           ) : (
             <Link
-              href="/super-admin/profile"
+              href={profilePath}
               className="flex h-10 items-center rounded-lg bg-[#F1F5F9] px-4 text-[13px] font-medium text-[#0F172A] transition-colors hover:bg-[#E2E8F0]"
             >
               Cancel

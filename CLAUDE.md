@@ -1133,120 +1133,145 @@ Admin-side directory/CRUD screen built anyway, at `/super-admin/gatekeepers`.
   live post-refactor (opened, confirmed identical rendering, cancelled
   without submitting — it's the real admin's own account, not a test one).
 
-## Temporary-password account creation + forced first-login change — 2026-09-17, branch `feature/temp-password-first-login`
+## Champion Web Portal — built 2026-09-16, branch `feature/champion-web-portal`
 
-Champion and Gatekeeper account creation (Epic 8's `createChampionAction`,
-and the shared `inviteAndCreateGatekeeper` behind both single and bulk-CSV
-Gatekeeper creation) no longer uses Supabase's `inviteUserByEmail` magic-link
-flow. Both now generate a system temporary password and email it directly
-alongside a plain `/login` link, and the account is locked behind a forced
-"Set Your Password" screen until a real password is set. Checked first
-whether this conflicts with any already-logged "must-change-password" gap
-in this file — **it doesn't**: no such gap was previously documented under
-that name anywhere in this log. The closest related item is the Epic 1 note
-that password-changed *confirmation* emails weren't being sent — a
-different, narrower gap (a notification after an already-elective change),
-not a forced-first-login requirement, and it's unaffected by this change.
+The "Not started yet" note below had stood since Sprint 1 ("BLOCKED until
+Champion user stories are written by the BA") — that blocker never actually
+lifted (no separate Champion user-stories doc exists), but the user
+explicitly asked to build the Champion Web Portal directly from the
+**Initial Requirement Document**'s "Champion Features" section and
+`Phase1 Feature Checklist.md` §2, using the Figma node at `118:30465` as the
+design source. Built section by section, same rigor as every Super Admin
+epic this session: reuse existing shared components, verify every RLS
+scoping claim directly, exclude any Figma content with no real schema
+backing, and end-to-end test each section with seeded throwaway data before
+cleanup.
 
-**Why this needed a real architecture decision, not just a config change**:
-Supabase's own invite/magic-link email templates have no way to embed
-arbitrary custom content like a generated password — they only support the
-confirmation URL and a few fixed fields. Retrieving the SendGrid key already
-configured inside Supabase's SMTP settings for reuse was considered and
-rejected — tested directly against SendGrid's `/v3/scopes` endpoint and
-confirmed Supabase's Management API returns a masked/non-functional
-placeholder for `smtp_pass` on GET, not the real key. Flagged this to the
-user, who provided a fresh, real SendGrid API key (confirmed live, `mail.send`
-scope) to add to this app's own `.env.local` as `SENDGRID_API_KEY` — a
-deliberate, explicit exception to the earlier documented decision to keep
-provider keys inside Supabase's config only, scoped narrowly to this one new
-email type. Every other transactional email in this app (password-changed
-notifications, the reset-password link itself) still goes through Supabase's
-existing SMTP config unchanged.
+**Pre-build scoping** (full findings in this session's transcript): the
+Figma "Champions" canvas contains 7 screens (sign-in, dashboard, gatekeeper
+directory, resources, announcements, events, profile) — all clearly
+produced by copy-pasting the Super Admin mockups and reskinning copy,
+**without** re-applying this project's own no-fabrication decisions or
+correcting scope down to a single club. Concretely rejected before building
+anything: a fabricated onboarding funnel state machine, satisfaction/
+attendance percentages, seat-capacity/registration counts, "peer
+verification" and monthly "goal" figures, "Live Sync Active" and
+Auto-sync-with-Outlook/GCal badges, a "Mobile App Status" column (no
+Gatekeeper app exists), and a multi-club Gatekeeper directory view (a
+Champion manages exactly one club). The sign-in screen itself was a full
+decoy — the app already has one shared, tested login page for both roles.
 
-**What was built**:
-- `lib/generate-temp-password.ts` — 12-char temp password, guaranteed to
-  satisfy `validatePassword`'s own rules (one of each required character
-  class, not left to chance), excluding visually-ambiguous characters since
-  it's read from an email and typed in.
-- `lib/send-email.ts` — direct SendGrid Web API call (not Supabase's
-  SMTP-relayed mailer), reusing the same verified Single Sender
-  (`jayani@ensiz.com`) already configured for Supabase's own emails.
-- `lib/create-invited-user.ts` — the one shared implementation for both
-  Champion and Gatekeeper creation (previously each called
-  `inviteUserByEmail` independently with the same shape but no shared
-  code): creates the auth user via `admin.auth.admin.createUser()` with the
-  temp password, sends the custom email, and rolls back (deletes the auth
-  user) if the email send fails — preserving the existing "no orphaned
-  `auth.users` row on failure" invariant. Also seeds `password_history`
-  with the temp password's hash (new `seedPasswordHistoryAdmin` in
-  `lib/password-history.server.ts`) so the existing reuse check correctly
-  rejects "changing" to the exact same temporary password.
-- New `profiles.must_change_password` column (migration
-  `20260917000000_add_must_change_password.sql`), set `true` on creation.
-  Deliberately left out of the `protect_profile_privileged_fields` trigger
-  (unlike `role`/`club_id`/`is_active`) — a self-authored bypass of this
-  flag only weakens that one user's own account security, not a
-  privilege-escalation vector like the fields that trigger does protect, so
-  the added complexity of routing its clearing through the admin client
-  wasn't justified.
-- `middleware.ts` now also fetches `must_change_password` alongside `role`
-  and force-redirects any authenticated request to `/set-password` until
-  it's cleared — `/reset-password` and `/auth/*` stay reachable throughout
-  so "Forgot Password" remains a valid escape hatch for a user who lost the
-  temp-password email; `resetPasswordAction` now also clears the flag
-  (mirroring `changePasswordAction`) so that path doesn't leave a user
-  stuck looping back to `/set-password` after a real reset.
-- `/set-password` (new, top-level route — deliberately **not** under the
-  `(auth)` route group, whose narrow 411px two-panel layout doesn't fit
-  this form's richer content) reuses `ChangePasswordForm` via a new
-  `mode="forced"` variant rather than a parallel implementation: same
-  validation, reuse-check, and audit-log logic as the existing elective
-  Change Password flow, just different copy, no Cancel button (nowhere to
-  go), and a redirect to the user's dashboard on success instead of closing
-  a modal.
+**Schema fix required before building anything**: Champions already had
+read+insert RLS on their own club's Gatekeepers but no UPDATE policy at
+all, which would have silently blocked edit/deactivate/reactivate. Added
+migration `20260916000000_add_champion_gatekeeper_update_policy.sql`
+(`profiles: champion update own club gatekeeper`, scoped identically to the
+existing insert policy — both USING and WITH CHECK require
+`role='gatekeeper' AND club_id=current_user_club_id()`, so a Champion can
+never move a Gatekeeper to a different club).
 
-**Known, accepted limitation — flagged, not fixed**: Gatekeepers are
-mobile-only (`loginAction` explicitly blocks `role='gatekeeper'` from the
-web app, signing them out immediately), and no Gatekeeper mobile app exists
-in this repo yet. So while Gatekeeper account creation now genuinely
-generates a temp password, emails it, and sets `must_change_password`
-correctly (verified directly via the DB), the actual login + forced-screen
-behavior can only be exercised for Champions in this repo today — the same
-pre-existing limitation already documented elsewhere in this file for
-Gatekeeper login-blocking in general. This will need an equivalent forced
-first-login screen built into the mobile app once one exists.
+- **Dashboard** (`/champion`) — KPI tiles (active/inactive/new-this-month
+  Gatekeepers, QPR certified %), an active-vs-inactive donut, a QPR
+  certification breakdown bar, a 6-month onboarding trend chart, an
+  "Onboarding Status" widget, and upcoming/recently-completed club events.
+  The "added but not yet logged in" requirement (Gatekeeper dashboard
+  element 5) is genuinely real, not fabricated, despite no Gatekeeper
+  mobile app existing yet: it reads Supabase Auth's own `last_sign_in_at`
+  (set on any invited user's first real authentication) via the admin
+  client, so it will already be accurate the moment a Gatekeeper app ships.
+- **Gatekeeper Management** (`/champion/gatekeepers`) — full CRUD (list,
+  create single + bulk CSV, edit, deactivate/reactivate), scoped to the
+  Champion's own club with no club picker anywhere. Deactivate/reactivate
+  reuse the exact shared `DeactivationControls` component and
+  `ReactivateGatekeeperForm` built for the Super Admin side (not
+  duplicated). **Real security gap found and fixed**: `createGatekeeperAction`
+  / `createGatekeepersBulkAction` (`actions/gatekeepers.ts`) use the
+  service-role admin client, which bypasses RLS — before this fix, *any*
+  authenticated caller (not just Super Admin) could submit an arbitrary
+  `club_id` with zero server-side check, since no role guard existed on
+  this action at all. Added `resolveScopedClubId()`: a Champion caller's
+  `club_id` is now always forced server-side to their own club regardless
+  of what's submitted; a Super Admin's behavior is unchanged; any other
+  role is rejected outright.
+- **Events & Calendar** (`/champion/events`) — the same shared
+  platform-wide calendar as Super Admin (Month/Week/Agenda), reusing
+  `EventsCalendar`/`EventDetailPanel`/`CreateEventForm` directly
+  (parameterized with `basePath`/`lockedClub`/`manageClubId` props) rather
+  than a second ~700-line implementation. **New capability that didn't
+  exist for either role before**: Edit and Cancel an event, scoped to the
+  Champion's own club only — added `updateEventAction`/`cancelEventAction`
+  to `actions/events.ts`, both using the regular authenticated client so
+  the pre-existing `events: champion update club events` RLS policy is
+  what actually enforces scoping. **Bug found while testing**:
+  `updateEventAction` initially reused `createEventAction`'s `validate()`
+  as-is, which requires `club_id` — but the edit form never submits one
+  (club is shown read-only), so every edit failed with "Assigned club is
+  required." Fixed with a `requireClub` flag on `validate()` rather than
+  faking a hidden `club_id` input just to satisfy it.
+- **Announcements** (`/champion/announcements`) — title/body/publish-date/
+  expiry-date only, matching the requirement's literal scope (no audience/
+  priority/draft pickers — Super-Admin-only concepts). **Real scoping gap
+  found and fixed**: the Champion insert/update RLS policies require
+  `club_id` = the caller's own club on *every* row, but
+  `createAnnouncementAction`/`updateAnnouncementAction` only set `club_id`
+  when `audience === 'specific_clubs'` — so a Champion's insert would have
+  been rejected by RLS outright for any other (Super-Admin-only) audience
+  value. Added `resolveAnnouncementScope()`: forces
+  `audience='specific_clubs'` + `club_id`=own club whenever the caller is a
+  Champion (an honest description, not a fabricated one — the row really
+  is single-club), regardless of what the Champion-only form submits (it
+  exposes no audience/club picker at all). **Bug found while testing**: the
+  edit form's date inputs rendered empty instead of pre-filling —
+  `publish_date`/`expiry_date` are TIMESTAMPTZ columns
+  (`"2026-09-16T00:00:00+00:00"`), and a native date input's `defaultValue`
+  only matches an exact `YYYY-MM-DD` string. Fixed with the same
+  `toDateInputValue()` slice(0,10) helper already used on the Super Admin
+  side — this class of bug fails silently (empty field, no error), so it's
+  easy to miss without actually clicking into the edit form live.
+- **Resources** (`/champion/resources`) — read-only browse/preview/
+  download of Super-Admin-published resources, platform-wide (not
+  club-scoped, per the requirement doc), reusing `ResourceFilters`/
+  `ResourceTypeTabs`/`ResourceRow` directly. Added an explicit
+  `.eq('status', 'published')` filter on top of RLS as defense-in-depth —
+  the `resources: champion read published` policy only checks
+  `publication_date <= today`, not `status`, so a still-in-progress draft
+  with a past publication date would otherwise be readable.
+- **Profile** (`/champion/profile`) — view/update personal details, change
+  password, view role/access level. `ProfileForm` and `ChangePasswordForm`
+  were already fully role-agnostic and needed zero changes beyond a new
+  `profilePath` prop on the latter (defaults to the Super Admin route, so
+  that call site is unaffected). The "Role & Access" card shows a **real**,
+  live-resolved list of enabled permissions via
+  `list_effective_permissions(auth.uid())` + `permission_catalog` labels —
+  not a hardcoded capability list like the Super Admin profile's equivalent
+  card — reusing the Epic 9 resolution engine's own self-view guard.
 
-**Verified end-to-end** with a throwaway test Champion
-(`zz-test-temp-password@example.com`): created via the real Super Admin UI,
-temp password captured via a temporary debug log (removed immediately
-after, never committed) rather than real inbox access (the test address
-isn't a real mailbox), confirmed `must_change_password=true` and a seeded
-`password_history` row via direct DB query, logged in with the temp
-password and confirmed the forced screen appeared with **no** Cancel
-button and **no** sidebar, confirmed direct navigation to both
-`/champion` and `/super-admin` bounced back to `/set-password` (real
-navigation-blocking, not just a UI suggestion), set a real password,
-confirmed auto-redirect to `/champion` with full sidebar access restored,
-and directly verified via Supabase's own token endpoint that the old
-temp password now returns `invalid_credentials` while the new password
-returns a real access token. Also smoke-tested Gatekeeper creation through
-the same shared flow (confirmed `must_change_password`, `gatekeeper_code`,
-and `password_history` all correct via direct DB query) and
-regression-checked the existing elective "Change Password" modal
-afterward (Super Admin's own account, opened and cancelled without
-submitting) — unaffected by the `mode` prop addition. All test
-accounts and their audit-log rows deleted afterward, reconfirmed via
+**Shared-component changes made to support both roles** (all verified with
+a live regression pass afterward — Super Admin behavior unchanged in every
+case): `EventsCalendar`/`EventDetailPanel`/`CreateEventForm` gained
+`basePath`/`newEventHref`/`manageClubId`/`lockedClub`/`fallbackPath` props;
+`AnnouncementCard` gained `basePath`/`canManage`; `ResourceRow`/
+`ResourceTypeTabs` gained `basePath`/`canManage`; `ChangePasswordForm`
+gained `profilePath`. Also fixed a real pre-existing bug found along the
+way: the shared dashboard layout's "My Profile" link was hardcoded to
+`/super-admin/profile` for every role (a Champion clicking it was silently
+bounced to their own dashboard by middleware) — `ProfileMenu` now takes a
+`profileHref` prop, set per-role at the call site.
+
+**Verification discipline**: every section was tested end-to-end with a
+dedicated throwaway test club (`ZZ Test Champion Portal Club`), one
+throwaway Champion account, and 3–4 throwaway Gatekeepers/events/
+announcements covering the certified/expiring/inactive and own-club/
+other-club permission boundaries — created via the Auth Admin API and
+direct table inserts, confirmed via direct DB queries after every mutating
+action (not just UI appearance), and fully deleted (including cascaded
+`audit_logs` rows) at the end, reconfirmed back to a clean baseline via
 direct DB query.
 
 ### Not started yet
-- Everything on the Champion side (Gatekeeper management, Champion
-  dashboard, events, announcements, resource access) — BLOCKED until
-  Champion user stories are written by the BA. **Exception**: a Super
-  Admin-side Gatekeepers directory/CRUD screen now exists (see above) —
-  this bullet still accurately describes the Champion side, which remains
-  fully blocked.
 - Everything on the Gatekeeper mobile app — BLOCKED until Gatekeeper user
   stories exist, and until the web app's core features are further along.
+  (The Champion Web Portal above is now fully built — this bullet no
+  longer covers the Champion side.)
 - Recommended extras (push notifications, attendance tracking, announcement
   read tracking, audit log UI, mood tracker) — deferred, time-permitting.
