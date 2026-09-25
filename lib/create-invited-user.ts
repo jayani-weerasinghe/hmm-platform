@@ -43,12 +43,21 @@ export async function createInvitedUser(params: {
 
   const userId = created.user.id
 
+  // Champions have their own portal (/champion/login, added alongside
+  // loginAction's portal-mismatch check) — this was previously hardcoded
+  // to /login for every role, which sent Champion invites to the Super
+  // Admin portal URL; they'd land on a page subtitled for both roles, then
+  // get rejected at submit time by the portal check. Gatekeeper still has
+  // no real web destination (mobile-only, no app-store link established
+  // yet), so it's left on /login for now rather than inventing one.
+  const loginUrl = params.roleLabel === 'Champion' ? `${siteUrl}/champion/login` : `${siteUrl}/login`
+
   const { error: emailError } = await sendTemporaryPasswordEmail({
     to: params.email,
     fullName: params.fullName,
     tempPassword,
     roleLabel: params.roleLabel,
-    loginUrl: `${siteUrl}/login`,
+    loginUrl,
   })
 
   if (emailError) {
