@@ -199,6 +199,17 @@ export async function changePasswordAction(
     password: currentPassword,
   })
   if (verifyError) {
+    // TEMP DIAGNOSTIC LOGGING — remove once the "Password change failed"
+    // root cause is confirmed. The user-facing message is intentionally
+    // generic (Scenario 01), but that means real auth failures (expired
+    // session, unconfirmed email, rate limit) get masked as "wrong
+    // password" with no way to tell them apart from server logs alone.
+    console.error('[changePasswordAction] signInWithPassword verify failed:', {
+      email: user.email,
+      status: verifyError.status,
+      code: (verifyError as { code?: string }).code,
+      message: verifyError.message,
+    })
     return { error: 'Password change failed. Please check your current password and try again.' }
   }
 
