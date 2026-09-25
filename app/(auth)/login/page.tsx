@@ -6,7 +6,7 @@ export const metadata = { title: 'Sign In — HMM Platform' }
 export default function LoginPage() {
   return (
     <Suspense>
-      <LoginForm />
+      <LoginForm portal="super_admin" />
     </Suspense>
   )
 }

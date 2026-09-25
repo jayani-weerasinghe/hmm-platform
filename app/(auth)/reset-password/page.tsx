@@ -70,14 +70,16 @@ export default function ResetPasswordPage() {
               value={password}
               onChange={e => setPassword(e.target.value)}
               placeholder="••••••••••"
-              className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 pr-16 text-sm outline-none transition focus:border-[#F5A623] focus:ring-2 focus:ring-[#F5A623]/20"
+              className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 pr-11 text-sm outline-none transition focus:border-[#F5A623] focus:ring-2 focus:ring-[#F5A623]/20"
             />
             <button
               type="button"
               onClick={() => setShowPassword(v => !v)}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-[#1B2B4A] hover:text-[#F5A623] transition-colors"
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[#1B2B4A] transition-colors"
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
-              {showPassword ? 'Hide' : 'Show'}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={showPassword ? '/icons/pw-eye-off.svg' : '/icons/pw-eye.svg'} alt="" className="h-4 w-4" />
             </button>
           </div>
 
@@ -114,14 +116,16 @@ export default function ResetPasswordPage() {
               autoComplete="new-password"
               required
               placeholder="••••••••••"
-              className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 pr-16 text-sm outline-none transition focus:border-[#F5A623] focus:ring-2 focus:ring-[#F5A623]/20"
+              className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 pr-11 text-sm outline-none transition focus:border-[#F5A623] focus:ring-2 focus:ring-[#F5A623]/20"
             />
             <button
               type="button"
               onClick={() => setShowConfirm(v => !v)}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-[#1B2B4A] hover:text-[#F5A623] transition-colors"
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[#1B2B4A] transition-colors"
+              aria-label={showConfirm ? 'Hide password' : 'Show password'}
             >
-              {showConfirm ? 'Hide' : 'Show'}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={showConfirm ? '/icons/pw-eye-off.svg' : '/icons/pw-eye.svg'} alt="" className="h-4 w-4" />
             </button>
           </div>
         </div>

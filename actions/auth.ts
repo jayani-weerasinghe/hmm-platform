@@ -15,6 +15,7 @@ export async function loginAction(
 ) {
   const email    = (formData.get('email')    as string).trim()
   const password = formData.get('password') as string
+  const portal   = formData.get('portal') as string | null // 'super_admin' | 'champion'
 
   if (!email || !password) return { error: 'Email and password are required.' }
 
@@ -44,8 +45,27 @@ export async function loginAction(
     return { error: 'Your account has been deactivated. Please contact an administrator.' }
   }
 
-  if (profile.role === 'super_admin') redirect('/super-admin')
-  if (profile.role === 'champion')   redirect('/champion')
+  // Two portals (this /login for Super Admin, /champion/login for Champions)
+  // share this one action/form — the hidden "portal" field says which door
+  // was used. A real account role mismatch (e.g. a Champion submitting the
+  // Super Admin login) is blocked here with a clear redirect hint, rather
+  // than silently letting them in and bouncing them to the right dashboard
+  // — RLS/middleware already scope actual access by real role regardless,
+  // this is purely about not letting people use the wrong door.
+  if (profile.role === 'super_admin') {
+    if (portal === 'champion') {
+      await supabase.auth.signOut()
+      return { error: 'This is a Super Admin account. Please sign in from the Super Admin login page.' }
+    }
+    redirect('/super-admin')
+  }
+  if (profile.role === 'champion') {
+    if (portal === 'super_admin') {
+      await supabase.auth.signOut()
+      return { error: 'This is a Champion account. Please sign in from the Champion login page.' }
+    }
+    redirect('/champion')
+  }
 
   // Gatekeepers are mobile-only
   await supabase.auth.signOut()

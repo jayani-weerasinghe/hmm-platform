@@ -1390,6 +1390,431 @@ and shown correctly (that's why the raw Postgres message was visible in
 the per-row results at all) — the 200 in the network tab was never a sign
 the error was missed.
 
+## Login page — copy fix + illustration-cropping regression fix — 2026-09-17
+
+User-reported, day-of the login rebuild logged above: the right-side
+illustration still didn't match Figma (bottom of the orange swirl and
+breathing room around the logo looked cropped/zoomed vs. Figma), and the
+form copy had drifted — heading read "Sign in" instead of Figma's literal
+"Login" text.
+
+**Root cause of the cropping, confirmed live, not just by code inspection**:
+`AuthIllustrationPanel`'s container locked `aspect-[711/900]` together with
+an explicit `h-full` *and* `max-w-full` — the fix from earlier the same day
+for a different (short-viewport-height) crop bug. That combination only
+actually holds the box to the image's native ratio when the available
+*width* is `>= height * (711/900)`. Reproduced the failure directly (forcing
+the flex panel to a narrower width via a live DOM/style override, since
+`resize_window` in this session is too unreliable — see the environment note
+below the 2026-09-17 login-rebuild entry above — to hit an exact narrow
+target pixel-for-pixel): when width is the tighter constraint, the browser
+can't satisfy both the definite height and the aspect-ratio at once, the box
+silently stops matching the image's ratio, and `object-cover` then crops to
+fill that mismatched box — clipping the logo and the left edge of the
+tagline text, exactly matching the report. This is a real regression from
+that earlier fix, not a one-off — any panel narrower (relative to its
+height) than the image's own ratio hits it.
+
+**Fix**: replaced the aspect-ratio-matching box entirely with a plain
+`h-full w-full` container and switched the image from `object-cover` to
+`object-contain` (`components/auth/auth-illustration-panel.tsx`). This is
+correct for every possible panel shape by construction — `object-contain`
+can never crop, it only ever letterboxes — and the letterboxed space is
+invisible here since the image's own background and the panel's background
+are the same `#FFF8EE`. Verified against the same forced-narrow repro
+(logo/tagline fully visible, no crop) and at the environment's other
+achievable window sizes; all showed the complete illustration with the same
+breathing room Figma shows.
+
+**Copy fix**: re-pulled node `1:22`'s metadata directly (not just the
+earlier screenshot) and confirmed the heading text node (`1:43`) is
+literally "Login" — the live page still said "Sign in" from before this
+node was last edited. Changed `login-form.tsx`'s `<h1>` to "Login" to match.
+The button itself stays "Sign in" (Figma's own button label, unchanged).
+Email/password placeholders (`you@healingmindsmatter.org` / "At least 8
+characters") were already correct from the earlier rebuild — no change
+needed.
+
+**Subtitle — did not change, flagging a discrepancy in what was reported**:
+the request described the reference as reading "For Champion," but a fresh
+read of node `1:44` shows the literal Figma text is "For Super Admin"
+(singular, Super-Admin-only — this predates the Champion Web Portal, same
+stale-copy issue already noted in the 2026-09-15 Profile-rebuild entry).
+Kept the existing "For Super Admins and Champions." wording rather than
+copying either literal Figma variant — this is a genuinely shared login
+page for both roles now, and neither "For Super Admin" nor "For Champion"
+alone would be accurate. Same deliberate-deviation call as the original
+2026-09-17 rebuild; not re-litigated, just re-confirmed against the actual
+node text.
+
+## Login page — illustration rebuilt as real layered SVG, not a flattened PNG — 2026-09-18
+
+User-reported: the illustration still didn't match Figma after the previous
+fix — the photo was masked into a generic rounded-rectangle/blob instead of
+Figma's actual organic shape, and the swirl/photo/logo bled past the panel's
+right edge and got cut off. Root cause of both: `AuthIllustrationPanel` was
+one flattened raster PNG export (a screenshot-derived crop), so it carried no
+real clip data, and (separately) whatever CSS box was sizing it could still
+end up wider than the panel's own padded space at some proportions.
+
+**Fixed by rebuilding the whole panel as a single inline SVG using real data
+pulled directly from Figma** (fileKey `K1Csx2BjbSmP9NRSDtoEe2`, node `1:22`
+"Login") via `get_design_context`/`get_metadata`, not approximated:
+- The photo's clip shape is node `1:27`'s actual "Union" path (a boolean
+  union of 4 vectors + 4 rounded rectangles), embedded verbatim as an SVG
+  `<clipPath>` — not a border-radius or hand-drawn blob.
+- The three layers that appear "inside" that shape (photo `1:36`, swirl
+  accent `1:37`, room/plants background `1:38`) all reference the *same*
+  clip region at different offsets, which is how Figma gets the interlocking
+  look (each layer reveals a different "cell" of the same union). Confirmed
+  this by independently back-computing the clip's absolute origin from all
+  three layers' own `mask-position` values — all three agreed to within
+  0.005px (`868.003, 79.365`), so one `<clipPath>` correctly serves all three.
+- The two swirl vectors (node `1:25` "Vector 9", back/decorative, and node
+  `1:37`'s own art) are embedded as real stroked `<path>`s with their
+  original gradients (`paint0_linear_0_14` / `paint0_linear_0_4`), not
+  rasterized — **caught and fixed a self-introduced bug here**: on the first
+  pass the two paths/gradients got swapped between the two usages, which
+  produced solid-looking swirls instead of Figma's softer translucent
+  gradient look; re-verified against each source file directly before fixing.
+- The logo badge (node `1:56`) needed Figma's own non-uniform fill-scale
+  (`h-115.22% w-148.3% left--25.95% top--6.69%` of its own 75×57 box) — a
+  plain center-crop of the source asset rendered unreadable/distorted text;
+  reproducing Figma's exact scale-and-shift (`preserveAspectRatio="none"` at
+  the computed 111.225×65.675 box, shifted to `1313.538, 28.187`) fixed it.
+- Tagline text/rule (node `130:34222`) uses Figma's literal values directly
+  (20px/700/`#012C51`/0.2px tracking; rule `#F4AC1E`, `rx:2`) as real SVG
+  `<text>`/`<rect>`, not baked into a raster.
+
+**Why this also fixes the edge-bleed/cropping**: the whole composition is one
+`<svg viewBox="729 0 711 900" preserveAspectRatio="xMidYMid meet">` — 711×900
+is the same visible right-hand slice of Figma's 1440×900 frame the previous
+PNG used (`x:[729,1440]`), and viewBox slicing reproduces the frame's own
+content-clipping exactly. Rendering it as an `<svg>` (a replaced element,
+same category as `<img>`) rather than a plain CSS box means normal
+`preserveAspectRatio="meet"` containment behavior applies natively — it
+cannot be pushed into the over-constrained aspect-ratio/height combination
+that broke the previous two attempts (documented in the two entries above);
+there is no CSS state that makes an `<svg>` render outside its own box.
+Verified live by forcing the panel to extreme sizes in both directions
+(a 260px-wide panel and a 180px-tall panel, both far outside anything a real
+browser window would produce) — the whole illustration scales as one unit,
+centered, with zero cropping or distortion at either extreme.
+
+**Assets**: `photo.jpg` (was `.png`, re-encoded to JPEG since it has no
+transparency — 1.8MB → 210KB), `room-bg.png` (kept as PNG, genuinely has
+alpha), and `logo-badge.png`, all under `public/images/login/`, pulled from
+Figma's own asset export (not re-screenshotted). The old flattened
+`login-illustration.png` and the intermediate standalone mask/swirl SVG
+files (superseded by inlining the same path data directly in the component)
+were deleted — nothing else referenced them.
+
+## Login page — show/hide password fix + dual portal routing — 2026-09-18
+
+**Password toggle audit across every password field in the app**: found
+that Change Password (`ChangePasswordForm`'s `PasswordInput`, shared by the
+Super Admin/Champion modals and the "Set Your Password" forced first-login
+screen at `/set-password`) already had a correct, working eye-icon toggle —
+no fix needed there. Two real bugs found and fixed elsewhere:
+- **Login page** (`login-form.tsx`): the toggle's state/type-switching logic
+  was already functional (dots ↔ plain text worked), but the icon mapping
+  was inverted relative to the convention `ChangePasswordForm` established
+  from Figma — it showed the *open* eye icon while the password was already
+  revealed, and the *crossed-out* eye while it was hidden (backwards from
+  "open eye invites you to reveal, crossed-eye invites you to hide"). Fixed
+  by swapping the two icon srcs so it matches the same, already-correct
+  convention everywhere else.
+- **Reset Password page** (`/reset-password`, the final step of the Forgot
+  Password email-link flow): had a working toggle but used plain "Show"/
+  "Hide" text buttons instead of the eye icon used everywhere else in the
+  app. Replaced both password fields' toggle buttons with the same
+  `/icons/pw-eye.svg` / `pw-eye-off.svg` pair, same convention.
+Verified live: screenshotted the Login password field masked, then revealed
+via the eye icon, confirming the dots-to-plaintext toggle actually works and
+the icon state now matches everywhere else.
+
+**Two login portals, one shared form component**: added `/champion/login`
+alongside the existing `/login`, both rendering the exact same
+`LoginForm`/`(auth)` layout — no duplicated page, just a new `portal:
+'super_admin' | 'champion'` prop that drives the subtitle text ("For Super
+Admin" vs. "For Champion") and a hidden `portal` form field. Confirmed this
+was the right shape before building: the existing `middleware.ts` already
+keys all role-gating off `profiles.role`, not off which URL was used to log
+in, and no existing plan/checklist/Figma frame calls for a different
+routing shape — so two thin routes sharing one component (the option this
+was already leaning toward) was the correct, lowest-friction fit, not just
+an assumption.
+- **Real blocking, not just cosmetic**: `loginAction` (`actions/auth.ts`)
+  now reads that hidden `portal` field and rejects a real role mismatch
+  outright — a Champion account submitted through `/login` (or a Super
+  Admin account through `/champion/login`) gets signed back out immediately
+  with "This is a [Champion/Super Admin] account. Please sign in from the
+  [Champion/Super Admin] login page." instead of silently letting them in
+  and bouncing them to their real dashboard. This is a UX/business rule, not
+  a security boundary — RLS and the middleware role-gates already scope
+  real access correctly either way — but per the request, using the wrong
+  door is now actually refused, not just cosmetically mismatched.
+- `middleware.ts`: added `/champion/login` to `PUBLIC_PREFIXES` (it was
+  being caught by the "protected route, not authenticated → login" rule and
+  bounced straight back to `/login` before this) and to the
+  already-authenticated-user redirect-to-dashboard check (mirrors `/login`'s
+  existing behavior — an already-signed-in user hitting either login page
+  just gets sent to their own dashboard, not blocked; the portal-mismatch
+  block only applies to an actual login *attempt*, which only `loginAction`
+  can see).
+- End-to-end tested live with a throwaway test Champion account (created
+  directly via the Auth Admin API, not through the invite flow, to keep the
+  test fast) alongside the real Super Admin account, all four combinations:
+  Super Admin via `/login` → succeeds; Super Admin via `/champion/login` →
+  blocked; Champion via `/champion/login` → succeeds (reaches `/champion`);
+  Champion via `/login` → blocked. Test account and its audit-log rows
+  deleted afterward, confirmed via direct DB query.
+
+## Login page — font sizes, swirl continuity, panel balance — 2026-09-18
+
+User asked for a second review pass on the Login page's font sizes, swirl
+continuity, image responsiveness, and left/right panel balance. **Root
+cause of most of it**: the Figma file had been revised in place again since
+the previous rebuild — node `1:22` (used to pull every coordinate/path in
+the previous two entries) no longer exists at all; the current "sign in"
+section's frame is now `144:20`, same file (`K1Csx2BjbSmP9NRSDtoEe2`). Every
+number the illustration used was quietly stale. Re-pulled everything fresh
+from `144:20`/`144:22` via `get_metadata`/`get_design_context` rather than
+trusting anything cached from the deleted node — same "file gets revised in
+place, always re-check" lesson as the 2026-09-15 Profile/Permissions entries.
+
+**Font sizes — real mismatches found and fixed** (`login-form.tsx`), pulled
+from the current node's actual text styles, not eyeballed:
+- Email/Password field labels: were `14px`/`0.14px` tracking, Figma is
+  `16px`/`0.16px`. Fixed.
+- Email input text + placeholder: same 14→16px fix (shares the label's
+  input styling).
+- Password input text + placeholder: **left at 14px** — Figma genuinely
+  uses a smaller size here specifically (`text-[14px]` on that one field,
+  vs `16px` for Email), presumably so the longer "At least 8 characters"
+  placeholder fits comfortably; not a bug, confirmed via the actual node.
+- "Sign in" button text: was `16px`/`0.16px`, Figma is `18px`/`0.18px`. Fixed.
+- Heading (34px), subtitle (18px), checkbox label (14px), "Forgot
+  Password?" (14px), and the tagline (20px, already real SVG text from the
+  previous rebuild) were already correct — verified via
+  `getComputedStyle` on the live page, not just re-reading the JSX.
+
+**Swirl continuity + responsiveness** (`components/auth/auth-illustration-
+panel.tsx`, full rewrite with the fresh `144:20` coordinates): same
+technique as the previous rebuild (one inline SVG, `viewBox="729 0 711
+900"` slicing the visible right-hand region of the 1440×900 frame, a real
+`<clipPath>` from the photo's exact "Union" path, the two swirl vectors as
+real stroked paths with their own gradients) — just every coordinate,
+gradient, and path `d` value re-extracted from the current node instead of
+reused. Cross-checked the shared clip origin three independent ways from
+the three masked layers' own `mask-position` values (photo/accent/room-bg
+all agree to within 0.001px: `798.000, 122.427`) before using it, same
+verification discipline as before. Because it's real `<svg>` markup (not a
+flattened raster) with `preserveAspectRatio="xMidYMid meet"`, it scales as
+one unit at any container size with no crop possible — re-verified live by
+forcing the panel to a 260px-wide and a 180px-tall extreme (both far beyond
+any real browser window); the swirl reads as the same continuous loop at
+every size tested, natural and both extremes.
+
+**Panel balance — a real, verifiable bug, not just a look-alike issue**
+(`app/(auth)/layout.tsx`): the left card was `lg:w-[697px] lg:flex-none`
+(fixed) while the illustration panel was plain `flex-1` (unbounded) — so
+the two sides grew increasingly lopsided at wide viewports instead of
+staying balanced. There's no single explicit Figma "right panel width" to
+copy (the illustration is loose content in Figma, not a second named,
+bounded frame like the 697px card is), so exact 50/50 was the closest
+non-fabricated match: both sides are now `lg:flex-1`. Also removed the
+`lg:gap-8` (32px) flex gap between the two sides — this frame doesn't
+actually show a deliberate gap of that kind between two named panels (only
+the 32px *outer* frame margin, which is real and was kept via `lg:p-8`);
+the space that appears between the card and the illustration's visible
+content is just where the SVG's own composition happens to be empty, not a
+second, additively-stacked gap. Verified live via `getBoundingClientRect`
+on both panels at a real viewport: `768×693` each, flush at the same x
+coordinate (800) — equal width, equal height, zero added gap.
+`/forgot-password` (shares this same layout) re-checked live afterward,
+unaffected.
+
+## Login page — third review pass: real eye icon, field-by-field re-check — 2026-09-18
+
+User did a close side-by-side against Figma again and flagged the
+password field's show/hide icon as visibly wrong shape ("looks like a lock
+or circle-dot" instead of an eye). Re-checked node `144:20` first — **it
+had not been revised again** (unchanged from the previous entry, same file
+`K1Csx2BjbSmP9NRSDtoEe2`), so this was a real implementation bug, not stale
+data this time.
+
+**Root cause, confirmed two ways**: node `144:56` is literally named
+`basil:eye-closed-outline` — a real icon from the Basil Iconify set, 24×24,
+shown paired with the masked/dotted password field in Figma's static
+mockup. The live page was instead using a differently-shaped, non-square
+icon (`/icons/pw-eye.svg` / `pw-eye-off.svg`, native ratio 16.5:11.25 and
+16.5:14.85) forced into a 16px **square** box (`h-4 w-4`) with
+`preserveAspectRatio="none"` baked into the SVG itself — non-uniformly
+stretching an already-different icon into a distorted blob. Downloaded
+Figma's actual asset for `144:56` and cross-checked it against the public
+Iconify registry (`api.iconify.design/basil/eye-closed-outline.svg`) —
+identical path data, confirming it's the real, unmodified icon, not
+something to hand-draw. Fetched the real open-eye companion
+(`basil:eye-outline`, same registry, same icon set) for the revealed state
+— Figma's static mockup can only show one interactive state, so this isn't
+a separate node in the file, but it's the verified real counterpart, not
+invented. Saved both as `public/icons/basil-eye-outline.svg` /
+`basil-eye-closed-outline.svg` and wired `login-form.tsx` to use them at
+their real 24×24 size (`h-6 w-6`, no distorting stretch needed) — scoped to
+the Login page only; `ChangePasswordForm`'s `PasswordInput` (Change
+Password modal, Set Your Password) and the Reset Password page keep their
+existing `pw-eye.svg` pair and convention, since neither was reported
+broken this pass and neither was re-verified against its own Figma source
+today. **Convention note**: Figma pairs closed-eye-icon with the
+*masked* state (icon describes current state, not the click action) —
+opposite to `ChangePasswordForm`'s open-eye-when-hidden convention.
+Matched Login's own Figma source exactly rather than forcing consistency
+with the other component's unverified-this-session convention.
+
+**Full field-by-field re-check of the left form**, values pulled fresh
+from `144:20` (not re-trusted from prior passes), each confirmed live via
+`getComputedStyle` — Figma value → live rendered value, all matches unless
+noted:
+- Heading "Login": 34px/black/`#012C51` → 34px/700/`rgb(1,44,81)` ✓
+- Subtitle: 18px/regular/0.18px/`#67707F` → 18px/400/0.18px/`rgb(103,112,127)` ✓
+- Email/Password labels: 16px/0.16px/`#0C1421` → 16px/400/0.16px/`rgb(12,20,33)` ✓ (this was the fix from the previous pass — re-confirmed it actually took effect, not just re-claimed)
+- Email input text: 16px/0.16px → 16px/400/0.16px ✓
+- Password input text: 14px/0.14px (Figma genuinely uses a smaller size on this one field) → 14px/400/0.14px ✓
+- Checkbox label "Keep me signed in": 14px/0.14px/`#67707F` → 14px/400/0.14px/`rgb(103,112,127)` ✓
+- "Forgot Password?": 14px/bold/0.14px/`#265BA2` → 14px/700/0.14px/`rgb(38,91,162)` ✓
+- Button "Sign in": 18px/semibold/0.18px/white → 18px/600/0.18px/`rgb(255,255,255)` ✓ (also the previous pass's fix — re-confirmed)
+- Input height/radius/border: 48px/`8px`/`#D4D7E3` → 48px/`8px`/`rgb(212,215,227)` ✓ (background reads as a light blue in a live screenshot only because Chrome's autofill highlight overrides it when a field is autofilled — confirmed via `getComputedStyle` this isn't the app's own CSS)
+- Label→input gap (8px), Email→Password field gap (24px), fields-block→checkbox-row gap (9px), checkbox→its own label gap (7px): all already matched Figma's real values from the previous pass — re-confirmed by re-reading the exact class values against `144:45`/`144:46`/`144:49`/`144:50`'s real gap values, not just re-asserted.
+- Checkbox icon itself (`carbon:checkbox`, 18×18): the app's existing `/icons/checkbox-unchecked.svg` turned out to already be the same real Carbon icon (same path shape, just a differently-scaled 22×22 export vs Figma's 18×18 — no visual difference since both are simple square outlines) — verified by downloading Figma's own asset and comparing; no change needed.
+
+Screenshotted the live left panel next to a fresh Figma crop of `144:20`'s
+left side at matching framing to confirm — heading, subtitle, both fields,
+checkbox, "Forgot Password?", button, and (the actual fix) the eye icon
+shape all match.
+
+## Login heading — found the real reason font-weight/family fixes weren't sticking — 2026-09-19
+
+User reported the Login heading still wasn't extra-bold Inter despite
+`font-black` + `font-[family-name:var(--font-inter)]` already being in
+`login-form.tsx`'s `<h1>` classes. Root cause, confirmed live via
+`getComputedStyle` before touching anything: `app/globals.css` has a plain,
+**unlayered** `h1, h2, h3, h4, h5, h6 { font-family: var(--font-jakarta);
+font-weight: 700; letter-spacing: -0.025em }` (plus `h1 { letter-spacing:
+-0.035em }`) — written directly in the stylesheet outside any `@layer`
+block. Tailwind v4 puts every one of its own utility classes inside cascade
+layers (`theme`/`base`/`components`/`utilities`); per the CSS cascade-layer
+spec, **unlayered author CSS always wins over layered CSS**, regardless of
+source order or selector specificity. So this rule was unconditionally
+beating `font-black`, the font-family utility, and the tracking utility on
+every `<h1>` in the app that tried to override it — not just Login's.
+Confirmed precisely: the heading's `getComputedStyle` before the fix read
+`fontFamily: Jakarta` (not Inter), `fontWeight: "700"` (not the requested
+900), and `letterSpacing: "-1.19px"` — which is exactly
+`34px × -0.035em`, i.e. the global rule's value computed against Login's
+own 34px size, not `login-form.tsx`'s intended `0.34px`.
+
+**Considered the systemic fix** (moving those rules into `@layer base`, so
+every heading's own Tailwind classes could properly override them as
+Tailwind intends) but backed off — a repo-wide grep found ~113 other
+heading tags, several of which already carry their *own* `tracking-[...]`
+values that are currently silently overridden the same way. Un-breaking
+that globally would change the rendered letter-spacing on headings across
+many pages no one asked to touch in this session, with no way to review
+each one. **Flagging this as a real, separate latent bug worth fixing
+deliberately later** — but scoped today's fix to just the Login heading:
+added Tailwind's `!` important-modifier suffix to that one `<h1>`'s
+font-family/font-weight/tracking classes (`font-[family-name:var(--font-
+inter)]! font-black! tracking-[0.28px]! sm:tracking-[0.34px]!`), which
+forces those three properties to win on this element specifically without
+touching the shared global rule or any other page's headings. Re-verified
+live via `getComputedStyle`: `fontFamily: "Inter, \"Inter Fallback\""`,
+`fontWeight: "900"`, `letterSpacing: "0.34px"` — matches Figma's own
+`Inter:Black` designation exactly (Tailwind's own naming calls weight 900
+"black" and weight 800 "extrabold"; used 900 since that's the literal
+Figma value, not a guess at what "extra bold" means colloquially).
+
+## Login illustration — back swirl's floating end extended to the right edge — 2026-09-19
+
+User request, not a Figma-mismatch this time: the back swirl (the thick
+orange gradient loop) should have one end touching the top of the panel
+and the other touching the right edge — an explicit design ask, since
+Figma's own static frame actually shows this same floating round-cap end
+too (checked the reference screenshot at the exact same coordinates before
+assuming it was a bug — it wasn't a mismatch, the user wanted a different
+look than Figma's own mockup here).
+
+Measured the real endpoints live via each path's `getScreenCTM()` (not
+guessed): the top end already sat right at the panel's top edge
+(screenY≈27 vs panel top=32 — already bleeding past it correctly), but the
+other end (the path's `M582.338 760.285` start) landed ~76px short of the
+panel's right edge, floating with a visible round cap in empty cream
+space.
+
+**Fix, without inventing new curve geometry**: computed the curve's own
+real initial tangent direction from its first actual control point
+(340.546, 655.891) and prepended a straight `M<point> L582.338 760.285`
+segment continuing 130 units further out along that exact same direction
+— the original curve itself is byte-for-byte unchanged, this only adds a
+straight tail before it so the round stroke cap now bleeds past the right
+edge (and gets clipped by the existing `viewBox` slice) the same way the
+other end already bleeds past the top. Verified live: the band now runs
+cleanly off the right edge with no floating cap, at both the natural size
+and a forced 260px-wide extreme (confirming it still scales/anchors
+correctly, not just at one fixed size).
+
+## Login/Forgot Password — input background color, Forgot Password de-carded — 2026-09-19
+
+- Input field background on Login changed from `#F7FBFF` to `#FCFDFF` (both
+  Email and Password fields), per explicit request.
+- **Forgot Password page rebuilt flat to match Login exactly**: it
+  previously had its own nested `rounded-3xl bg-white p-10 shadow-md` card
+  floating inside the shared `(auth)` layout's own white panel — visibly
+  inconsistent with Login, which has no such nested card. **Checked for a
+  real Figma frame for this page first, per an explicit instruction not to
+  just copy Login's CSS blindly**: none exists — a full metadata scan of
+  the file's only page found no Forgot/Reset Password section anywhere
+  (only "sign in" for Login). With no real spec to pull instead, reused
+  Login's own verified layout/typography values directly (heading 34px
+  Inter Black w/ the same `!`-forced override for the same global-h1-rule
+  reason as Login's own heading, 18px subtitle, 16px label, the same
+  `#FCFDFF`/`#D4D7E3`/`8px`-radius input, the same 18px semibold button) —
+  removed the nested card entirely so content sits flat on the shared panel
+  exactly like Login. Covered both states (the email-entry form and the
+  post-submit "Check your email" confirmation) — verified live, neither
+  shows a nested card anymore, both match Login's spacing/typography.
+
+## Password field font-size — iOS Safari auto-zoom-on-focus, not a CSS bug — 2026-09-19
+
+User reported the Login password field's text "changes size" after clicking
+into it. Root cause is a real WebKit behavior, not app CSS: Login's
+Password input has a deliberate `14px` text size (Figma's own spec for
+this one field, confirmed in an earlier pass), but **iOS Safari
+auto-zooms the whole page when a focused input's font-size is under
+16px** — an accessibility feature so tiny input text doesn't stay
+illegible, not a bug in this app. That page-level zoom is what made
+everything, including the field itself, look like it "became 16px" on
+focus — nothing in this app's CSS was actually changing.
+
+**Fix**: kept the input's real font-size at 16px (matching Email, so the
+zoom trigger never fires) and moved the Figma-specified 14px onto the
+`::placeholder` pseudo-element specifically (`placeholder:text-[14px]
+placeholder:tracking-[0.14px]`) — the placeholder still renders visibly
+smaller than Email's placeholder exactly as Figma shows, real typed
+characters (which render as dots regardless of size) are unaffected, and
+the browser's zoom-trigger check only looks at the input's own base
+font-size, not its placeholder override. Verified live: `getComputedStyle`
+confirms the input's real font-size is 16px, and a screenshot with both
+fields cleared confirms the placeholder text is still visibly smaller than
+Email's.
+
+**Same bug also exists elsewhere, not fixed here** (out of scope for this
+specific report, flagging for a deliberate follow-up): Reset Password's
+two password fields use `text-sm` (14px) directly on the `<input>`, and
+`ChangePasswordForm`'s shared `PasswordInput` (Change Password modal, Set
+Your Password screen) uses `text-[13px]` directly on its `<input>`s — both
+would trigger the same iOS auto-zoom.
+
 ### Not started yet
 - Everything on the Gatekeeper mobile app — BLOCKED until Gatekeeper user
   stories exist, and until the web app's core features are further along.

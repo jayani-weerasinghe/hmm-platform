@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-const PUBLIC_PREFIXES = ['/login', '/forgot-password', '/reset-password', '/auth/']
+const PUBLIC_PREFIXES = ['/login', '/champion/login', '/forgot-password', '/reset-password', '/auth/']
 
 export async function middleware(request: NextRequest) {
   // Must be created before any other logic so cookie refresh always runs
@@ -48,7 +48,7 @@ export async function middleware(request: NextRequest) {
 
   const needsRole =
     user &&
-    (pathname === '/login' || pathname === '/forgot-password' ||
+    (pathname === '/login' || pathname === '/champion/login' || pathname === '/forgot-password' ||
      pathname.startsWith('/super-admin') || pathname.startsWith('/champion') ||
      pathname === '/set-password')
 
@@ -64,8 +64,13 @@ export async function middleware(request: NextRequest) {
 
     // Authenticated user hitting auth pages → send to their dashboard, or
     // to the forced password screen first if they haven't set a real
-    // password yet.
-    if (pathname === '/login' || pathname === '/forgot-password') {
+    // password yet. This applies regardless of which login route (admin or
+    // Champion) they landed on — an already-signed-in user just gets bounced
+    // to their own dashboard, not blocked; the portal mismatch check that
+    // actually blocks a login attempt lives in loginAction itself, since
+    // that's the only place that sees which portal was submitted vs. the
+    // resulting account's real role.
+    if (pathname === '/login' || pathname === '/champion/login' || pathname === '/forgot-password') {
       return NextResponse.redirect(new URL(mustSetPassword ? '/set-password' : destination, request.url))
     }
 
