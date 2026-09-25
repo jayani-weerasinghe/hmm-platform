@@ -31,6 +31,7 @@ function PasswordInput({
   onChange,
   icon,
   ringClass,
+  autoCompleteOverride,
 }: {
   id: string
   name: string
@@ -38,6 +39,7 @@ function PasswordInput({
   onChange?: (v: string) => void
   icon: string
   ringClass?: string
+  autoCompleteOverride?: string
 }) {
   const [visible, setVisible] = useState(false)
   return (
@@ -49,7 +51,7 @@ function PasswordInput({
         name={name}
         type={visible ? 'text' : 'password'}
         required
-        autoComplete={name === 'currentPassword' ? 'current-password' : 'new-password'}
+        autoComplete={autoCompleteOverride ?? (name === 'currentPassword' ? 'current-password' : 'new-password')}
         value={value}
         onChange={onChange ? e => onChange(e.target.value) : undefined}
         className={`h-10 w-full rounded-lg border bg-[#F8FAFC] pl-9 pr-10 text-[13px] text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8] ${ringClass ?? 'border-[#E2E8F0]'}`}
@@ -85,6 +87,7 @@ export function ChangePasswordForm({
 }) {
   const router = useRouter()
   const [state, formAction, isPending] = useActionState(changePasswordAction, null)
+  const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const rules = checkPasswordRules(newPassword)
@@ -159,7 +162,37 @@ export function ChangePasswordForm({
                   {mode === 'forced' ? "Didn't get one?" : 'Forgot current password?'}
                 </Link>
               </div>
-              <PasswordInput id="currentPassword" name="currentPassword" icon="/icons/pw-key-field.svg" />
+              <PasswordInput
+                id="currentPassword"
+                name="currentPassword"
+                icon="/icons/pw-key-field.svg"
+                value={currentPassword}
+                onChange={setCurrentPassword}
+                // A temp password (mode="forced") was never typed/saved in
+                // this browser before — there's no legitimate saved
+                // credential to autofill, and "current-password" invites
+                // Chrome to silently fill in an OLD saved password for
+                // this origin instead (this project's own domain has a lot
+                // of saved-password history from repeated testing). That's
+                // a real, confirmed bug: cross-referenced a live "Password
+                // change failed" report against Vercel runtime logs and the
+                // DB — the account's real temp password (proven to work at
+                // the login step 30s earlier) didn't match what actually
+                // got submitted here, with no code path in between that
+                // could have changed it. Left as current-password for the
+                // elective (real "change my password") mode, where
+                // autofilling the user's actual saved password is
+                // legitimate, wanted behavior.
+                // "off" doesn't reliably work here — Chrome has ignored
+                // autocomplete="off" on password fields since ~2014
+                // specifically to stop sites from blocking its password
+                // manager. "new-password" is the actual effective token:
+                // Chrome only ever suggests a NEW generated password for
+                // it (or leaves it blank), never autofills an old saved
+                // one — already proven safe in this exact form, since the
+                // newPassword/confirm fields use it and don't hit this bug.
+                autoCompleteOverride={mode === 'forced' ? 'new-password' : undefined}
+              />
             </div>
 
             <div className="flex flex-col gap-1.5">
