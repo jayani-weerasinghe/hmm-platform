@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import mediaInfoFactory from 'mediainfo.js'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { writeAuditLog } from '@/lib/audit'
@@ -21,7 +22,31 @@ function isExternalUrl(value: string) {
   return /^https?:\/\//i.test(value)
 }
 
-async function uploadResourceFile(file: File) {
+// Real duration for an uploaded video file, read from the already-in-memory
+// upload buffer (no second round-trip to Storage). Never throws — extraction
+// failure (corrupt file, unsupported codec, WASM init issue) just means
+// duration_seconds stays null and estimated_completion remains the fallback
+// for display; it must never block the upload itself.
+async function extractVideoDuration(buffer: Buffer): Promise<number | null> {
+  try {
+    const mediainfo = await mediaInfoFactory({ format: 'object' })
+    const getSize = () => buffer.length
+    const readChunk = (size: number, offset: number) =>
+      new Uint8Array(buffer.buffer, buffer.byteOffset + offset, Math.min(size, buffer.length - offset))
+    const result = await mediainfo.analyzeData(getSize, readChunk)
+    mediainfo.close()
+
+    const generalTrack = result.media?.track.find((track) => track['@type'] === 'General')
+    const duration = generalTrack?.Duration // seconds, per mediainfo.js's own docs for format:'object'
+    if (typeof duration !== 'number' || !Number.isFinite(duration) || duration <= 0) return null
+    return Math.round(duration)
+  } catch (err) {
+    console.warn('[resources] video duration extraction failed:', err instanceof Error ? err.message : err)
+    return null
+  }
+}
+
+async function uploadResourceFile(file: File, type: string): Promise<{ path: string; durationSeconds: number | null }> {
   const admin = createAdminClient()
   const ext = file.name.includes('.') ? file.name.split('.').pop() : ''
   const path = `${crypto.randomUUID()}${ext ? `.${ext}` : ''}`
@@ -32,7 +57,13 @@ async function uploadResourceFile(file: File) {
     .upload(path, buffer, { contentType: file.type || undefined })
 
   if (error) throw new Error(`File upload failed: ${error.message}`)
-  return path
+
+  // Only for uploaded video files — external URLs (any type) never go
+  // through this function at all, so there's no separate branch needed to
+  // exclude them.
+  const durationSeconds = type === 'video' ? await extractVideoDuration(buffer) : null
+
+  return { path, durationSeconds }
 }
 
 async function deleteResourceFile(path: string) {
@@ -93,11 +124,14 @@ export async function createResourceAction(
   if (!user) redirect('/login')
 
   let contentUrl = fields.contentUrl
+  let durationSeconds: number | null = null
   const hasFile = !!(fields.file && fields.file.size > 0)
 
   if (hasFile) {
     try {
-      contentUrl = await uploadResourceFile(fields.file as File)
+      const uploaded = await uploadResourceFile(fields.file as File, fields.type as string)
+      contentUrl = uploaded.path
+      durationSeconds = uploaded.durationSeconds
     } catch (err) {
       return { error: err instanceof Error ? err.message : 'File upload failed.' }
     }
@@ -129,6 +163,7 @@ export async function createResourceAction(
       created_by: user.id,
       status,
       estimated_completion: estimatedCompletion,
+      duration_seconds: durationSeconds,
       visible_to_champions: hasAudienceFields ? visibleToChampions : true,
       visible_to_gatekeepers: hasAudienceFields ? visibleToGatekeepers : true,
     })
@@ -183,10 +218,17 @@ export async function updateResourceAction(
   if (!user) redirect('/login')
 
   let contentUrl = fields.contentUrl
+  // Only set when a NEW file is uploaded this request — omitted from the
+  // update payload entirely otherwise, so an existing real duration (or an
+  // existing null, if extraction failed originally) is left untouched
+  // rather than being overwritten just because some other field changed.
+  let durationSeconds: number | null | undefined
 
   if (hasFile) {
     try {
-      contentUrl = await uploadResourceFile(fields.file as File)
+      const uploaded = await uploadResourceFile(fields.file as File, fields.type as string)
+      contentUrl = uploaded.path
+      durationSeconds = uploaded.durationSeconds
     } catch (err) {
       return { error: err instanceof Error ? err.message : 'File upload failed.' }
     }
@@ -202,6 +244,7 @@ export async function updateResourceAction(
       publication_date: fields.publicationDate,
       content_url: contentUrl,
       content_text: fields.type === 'article' ? fields.contentText : null,
+      ...(hasFile ? { duration_seconds: durationSeconds } : {}),
     })
     .eq('id', resourceId)
 
