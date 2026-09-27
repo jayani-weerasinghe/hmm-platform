@@ -2,13 +2,19 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   // mediainfo.js's Node build reads its .wasm file via `fs.readFileSync`
-  // relative to its own __dirname — a pattern that breaks under Next's
-  // default webpack bundling on Vercel (the .wasm can end up missing from
-  // the traced serverless function bundle, or __dirname stops pointing at
-  // the real node_modules path). Marking it external keeps it as a plain
-  // require() resolved from the real node_modules at runtime, so Vercel's
-  // output file tracing picks up the actual .wasm asset correctly.
+  // relative to its own __dirname. Marking it external (below) stops
+  // webpack from bundling its JS, but Vercel's own output file tracer
+  // (@vercel/nft) still didn't pick up the .wasm binary on its own —
+  // confirmed live via a real deployed upload: "ENOENT: no such file or
+  // directory, open '/var/task/node_modules/mediainfo.js/dist/esm/../
+  // MediaInfoModule.wasm'". outputFileTracingIncludes force-includes it
+  // for every route under the resources admin pages (create/edit, both
+  // the standalone and intercepted-modal variants all live under this
+  // path), where actions/resources.ts's uploadResourceFile() actually runs.
   serverExternalPackages: ["mediainfo.js"],
+  outputFileTracingIncludes: {
+    "/super-admin/resources/**": ["./node_modules/mediainfo.js/dist/**/*.wasm"],
+  },
   experimental: {
     serverActions: {
       // Matches this Supabase project's actual Storage file size limit
