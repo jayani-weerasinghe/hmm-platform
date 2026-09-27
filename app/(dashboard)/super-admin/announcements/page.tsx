@@ -21,7 +21,7 @@ export default async function AnnouncementsPage({
   // against).
   let query = supabase
     .from('announcements')
-    .select('id, title, body, publish_date, expiry_date, priority, audience, status, club_id, clubs(name)')
+    .select('id, title, body, publish_date, expiry_date, priority, audience, status, club_id, is_pinned, clubs(name)')
     .order('publish_date', { ascending: false })
 
   if (q) query = query.ilike('title', `%${q}%`)
@@ -45,8 +45,11 @@ export default async function AnnouncementsPage({
     priority: a.priority,
     audience: a.audience,
     status: a.status,
+    is_pinned: a.is_pinned,
     club_name: (a.clubs as unknown as { name: string } | null)?.name ?? null,
   }))
+
+  const pinnedCount = filtered.filter(a => a.is_pinned).length
 
   const all = allForStats ?? []
   const counts = { active: 0, scheduled: 0, drafts: 0 }
@@ -65,6 +68,11 @@ export default async function AnnouncementsPage({
           <p className="max-w-[768px] text-[14px] leading-5 text-[#475569]">
             Broadcast updates, protocol guidelines, and reminders across champions and clinical gatekeepers.
           </p>
+          {pinnedCount > 0 && (
+            <p className="text-[12px] text-[#64748B]">
+              {pinnedCount} pinned{pinnedCount > 3 ? ' — the Gatekeeper mobile app only features the 3 most recent' : ''}
+            </p>
+          )}
         </div>
         <Link
           href="/super-admin/announcements/new"

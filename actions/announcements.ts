@@ -16,8 +16,9 @@ function readFields(formData: FormData) {
   const audience    = (formData.get('audience') as string | null) || 'all'
   const clubId      = (formData.get('club_id') as string | null) || null
   const intent      = (formData.get('intent') as string | null) || 'publish'
+  const isPinned    = formData.get('is_pinned') ? true : false
 
-  return { title, body, publishDate, expiryDate, priority, audience, clubId, intent }
+  return { title, body, publishDate, expiryDate, priority, audience, clubId, intent, isPinned }
 }
 
 function validate(fields: ReturnType<typeof readFields>): string | null {
@@ -84,6 +85,7 @@ export async function createAnnouncementAction(
       audience: scope.audience,
       club_id: scope.clubId,
       status: fields.intent === 'draft' ? 'draft' : 'published',
+      is_pinned: fields.isPinned,
       created_by: user.id,
     })
     .select('id')
@@ -131,6 +133,7 @@ export async function updateAnnouncementAction(
       audience: scope.audience,
       club_id: scope.clubId,
       status: fields.intent === 'draft' ? 'draft' : 'published',
+      is_pinned: fields.isPinned,
     })
     .eq('id', announcementId)
 

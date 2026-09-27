@@ -44,6 +44,7 @@ export function CreateAnnouncementForm({
   const [priority, setPriority] = useState('standard')
   const [scheduleMode, setScheduleMode] = useState<'now' | 'later'>('now')
   const [hasExpiry, setHasExpiry] = useState(false)
+  const [isPinned, setIsPinned] = useState(false)
   const bodyRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
@@ -90,6 +91,7 @@ export function CreateAnnouncementForm({
       <form action={formAction} className="flex flex-1 flex-col overflow-hidden">
         <input type="hidden" name="audience" value={audience} />
         <input type="hidden" name="priority" value={priority} />
+        <input type="hidden" name="is_pinned" value={isPinned ? 'true' : ''} />
         {scheduleMode === 'now' && <input type="hidden" name="publish_date" value={todayInputValue()} />}
 
         <div className="flex flex-1 flex-col gap-4 overflow-y-auto bg-[#F8FAFC] p-6">
@@ -171,6 +173,22 @@ export function CreateAnnouncementForm({
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div className="rounded-xl bg-[#F8FAFC] p-[15px]">
+              <label className="flex items-center gap-2 text-[13px] text-[#0F172A]">
+                <input
+                  type="checkbox"
+                  checked={isPinned}
+                  onChange={e => setIsPinned(e.target.checked)}
+                  className="h-[13px] w-[13px] accent-[#003495]"
+                />
+                <span className="font-medium">Pin to top of Gatekeeper feed</span>
+              </label>
+              <p className="mt-1 pl-[21px] text-[11px] text-[#64748B]">
+                Shows in the featured carousel at the top of the mobile app&rsquo;s Announcements screen. Multiple announcements
+                can be pinned at once.
+              </p>
             </div>
 
             <div>

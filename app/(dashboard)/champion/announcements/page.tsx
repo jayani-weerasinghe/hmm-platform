@@ -16,7 +16,7 @@ export default async function ChampionAnnouncementsPage() {
   // the set this page is meant to show.
   const { data: announcements } = await supabase
     .from('announcements')
-    .select('id, title, body, publish_date, expiry_date, priority, audience, status, club_id, created_by, clubs(name)')
+    .select('id, title, body, publish_date, expiry_date, priority, audience, status, club_id, created_by, is_pinned, clubs(name)')
     .order('publish_date', { ascending: false })
 
   const cards: (AnnouncementCardData & { canManage: boolean })[] = (announcements ?? []).map(a => ({
@@ -28,6 +28,7 @@ export default async function ChampionAnnouncementsPage() {
     priority: a.priority,
     audience: a.audience,
     status: a.status,
+    is_pinned: a.is_pinned,
     club_name: (a.clubs as unknown as { name: string } | null)?.name ?? null,
     // Only the authoring Champion may edit/delete their own club's
     // announcement — matches "announcements: champion update/delete own"

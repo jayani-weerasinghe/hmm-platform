@@ -11,6 +11,7 @@ export type AnnouncementCardData = {
   priority: 'standard' | 'mandatory' | 'urgent'
   audience: 'all' | 'champions' | 'gatekeepers' | 'specific_clubs'
   status: 'draft' | 'published'
+  is_pinned: boolean
   club_name: string | null
 }
 
@@ -37,6 +38,13 @@ export function AnnouncementCard({
     <div className="flex flex-col gap-4 rounded-2xl bg-white p-6 shadow-[0px_1px_1px_rgba(0,0,0,0.05)]">
       <div className="flex items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
+          {a.is_pinned && (
+            <span className="flex items-center gap-1 rounded-full bg-[#F4AC1E] px-2.5 py-1 text-[11px] font-semibold tracking-[0.44px] text-[#2A1700]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/icons/pin.svg" alt="" className="h-[10px] w-[10px]" />
+              Pinned
+            </span>
+          )}
           {priorityBadge && (
             <span className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold tracking-[0.44px] ${priorityBadge.cls}`}>
               {/* eslint-disable-next-line @next/next/no-img-element */}

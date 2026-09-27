@@ -27,6 +27,7 @@ interface AnnouncementValues {
   audience: 'all' | 'champions' | 'gatekeepers' | 'specific_clubs'
   status: 'draft' | 'published'
   club_id: string | null
+  is_pinned: boolean
 }
 
 function toDateInputValue(value: string) {
@@ -49,6 +50,7 @@ export function AnnouncementForm({
   const [priority, setPriority] = useState(announcement.priority)
   const [status, setStatus] = useState(announcement.status)
   const [hasExpiry, setHasExpiry] = useState(!!announcement.expiry_date)
+  const [isPinned, setIsPinned] = useState(announcement.is_pinned)
 
   useEffect(() => {
     if (state?.success) close()
@@ -75,6 +77,7 @@ export function AnnouncementForm({
           <input type="hidden" name="audience" value={audience} />
           <input type="hidden" name="priority" value={priority} />
           <input type="hidden" name="intent" value={status === 'draft' ? 'draft' : 'publish'} />
+          <input type="hidden" name="is_pinned" value={isPinned ? 'true' : ''} />
 
           <div className="flex flex-1 flex-col gap-4 overflow-y-auto bg-[#F8FAFC] p-6">
             {state?.error && (
@@ -198,6 +201,22 @@ export function AnnouncementForm({
                   </label>
                 </div>
               </div>
+            </div>
+
+            <div className="rounded-xl bg-[#F8FAFC] p-[15px]">
+              <label className="flex items-center gap-2 text-[13px] text-[#0F172A]">
+                <input
+                  type="checkbox"
+                  checked={isPinned}
+                  onChange={e => setIsPinned(e.target.checked)}
+                  className="h-[13px] w-[13px] accent-[#003495]"
+                />
+                <span className="font-medium">Pin to top of Gatekeeper feed</span>
+              </label>
+              <p className="mt-1 pl-[21px] text-[11px] text-[#64748B]">
+                Shows in the featured carousel at the top of the mobile app&rsquo;s Announcements screen. Multiple announcements
+                can be pinned at once.
+              </p>
             </div>
 
             <div>

@@ -14,6 +14,7 @@ interface AnnouncementValues {
   audience: 'all' | 'champions' | 'gatekeepers' | 'specific_clubs'
   status: 'draft' | 'published'
   club_id: string | null
+  is_pinned: boolean
 }
 
 export function EditAnnouncementModal({

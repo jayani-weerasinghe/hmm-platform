@@ -9,7 +9,7 @@ export default async function InterceptedEditAnnouncementPage({ params }: { para
   const [{ data: announcement }, { data: clubs }] = await Promise.all([
     supabase
       .from('announcements')
-      .select('id, title, body, publish_date, expiry_date, priority, audience, status, club_id')
+      .select('id, title, body, publish_date, expiry_date, priority, audience, status, club_id, is_pinned')
       .eq('id', id)
       .single(),
     supabase.from('clubs').select('id, name').eq('is_active', true).order('name'),
