@@ -4,6 +4,7 @@ import { useActionState, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { loginAction } from '@/actions/auth'
+import { FORGOT_PASSWORD_PATH } from '@/lib/portals'
 
 const PORTAL_SUBTITLE = {
   super_admin: 'For Super Admin',
@@ -170,7 +171,7 @@ export function LoginForm({ portal }: { portal: 'super_admin' | 'champion' }) {
               <span className="text-[14px] tracking-[0.14px] text-[#67707F]">Keep me signed in</span>
             </label>
             <Link
-              href="/forgot-password"
+              href={FORGOT_PASSWORD_PATH[portal]}
               className="text-[14px] font-bold tracking-[0.14px] text-[#265BA2] hover:underline"
             >
               Forgot Password?

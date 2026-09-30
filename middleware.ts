@@ -1,7 +1,10 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-const PUBLIC_PREFIXES = ['/login', '/champion/login', '/forgot-password', '/reset-password', '/auth/']
+const PUBLIC_PREFIXES = ['/login', '/champion/login', '/forgot-password', '/champion/forgot-password', '/reset-password', '/auth/']
+
+// Sign-in pages an already-authenticated user gets bounced away from.
+const AUTH_PAGES = ['/login', '/champion/login', '/forgot-password', '/champion/forgot-password']
 
 export async function middleware(request: NextRequest) {
   // Must be created before any other logic so cookie refresh always runs
@@ -48,7 +51,7 @@ export async function middleware(request: NextRequest) {
 
   const needsRole =
     user &&
-    (pathname === '/login' || pathname === '/champion/login' || pathname === '/forgot-password' ||
+    (AUTH_PAGES.includes(pathname) ||
      pathname.startsWith('/super-admin') || pathname.startsWith('/champion') ||
      pathname === '/set-password')
 
@@ -70,7 +73,7 @@ export async function middleware(request: NextRequest) {
     // actually blocks a login attempt lives in loginAction itself, since
     // that's the only place that sees which portal was submitted vs. the
     // resulting account's real role.
-    if (pathname === '/login' || pathname === '/champion/login' || pathname === '/forgot-password') {
+    if (AUTH_PAGES.includes(pathname)) {
       return NextResponse.redirect(new URL(mustSetPassword ? '/set-password' : destination, request.url))
     }
 
