@@ -6,6 +6,8 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { writeAuditLog } from '@/lib/audit'
 import { createInvitedUser } from '@/lib/create-invited-user'
+import { parsePhone } from '@/lib/phone'
+import { checkPhoneAvailable, phoneChanged } from '@/lib/phone-uniqueness.server'
 
 export type GatekeeperActionState = {
   error?: string
@@ -30,7 +32,7 @@ function threeYearsFrom(dateStr: string): string {
 async function inviteAndCreateGatekeeper(params: {
   fullName: string
   email: string
-  phone: string | null
+  phone: string // already normalised by parsePhone()
   preferredLanguage: string
   clubId: string
   certificationDate: string
@@ -44,6 +46,10 @@ async function inviteAndCreateGatekeeper(params: {
     .eq('email', params.email)
     .maybeSingle()
   if (existing) return { error: 'An account with this email already exists.' }
+
+  // Before createInvitedUser() below sends a real account email.
+  const phoneError = await checkPhoneAvailable(params.phone, { creatingGatekeeper: true })
+  if (phoneError) return { error: phoneError }
 
   // Validate club_id BEFORE creating the auth user / sending the invite
   // email below — clubId reaches here as a raw string typed into a CSV
@@ -150,13 +156,16 @@ export async function createGatekeeperAction(
 ): Promise<GatekeeperActionState> {
   const fullName = (formData.get('full_name') as string | null)?.trim()
   const email    = (formData.get('email') as string | null)?.trim().toLowerCase()
-  const phone    = (formData.get('phone') as string | null)?.trim() || null
+  const parsedPhone = parsePhone(formData.get('phone') as string | null)
   const preferredLanguage = (formData.get('preferred_language') as string | null) || 'en'
   const requestedClubId = formData.get('club_id') as string | null
   const certificationDate = formData.get('certification_date') as string | null
 
   if (!fullName) return { error: 'Full name is required.' }
   if (!email)    return { error: 'Email is required.' }
+  if (!parsedPhone.ok) return { error: parsedPhone.error }
+  if (!parsedPhone.value) return { error: 'Phone number is required.' }
+  const phone = parsedPhone.value
   if (!certificationDate) return { error: 'Certification date is required.' }
 
   const supabase = await createClient()
@@ -177,7 +186,8 @@ export async function createGatekeeperAction(
 }
 
 // CSV header: full_name,email,phone,club_id,certification_date
-// phone is optional (leave blank); club_id must be a real active club UUID.
+// phone is required and must be unique (also within the same file);
+// club_id must be a real active club UUID.
 function parseCsv(text: string): string[][] {
   return text
     .split(/\r?\n/)
@@ -228,27 +238,43 @@ export async function createGatekeepersBulkAction(
   const forcedClubId = caller.role === 'champion' ? caller.club_id : null
   if (caller.role === 'champion' && !forcedClubId) return { error: 'Your account has no assigned club.' }
 
-  if (nameIdx === -1 || emailIdx === -1 || certIdx === -1 || (caller.role === 'super_admin' && clubIdx === -1)) {
-    const clubHint = caller.role === 'super_admin' ? 'full_name, email, club_id, certification_date' : 'full_name, email, certification_date'
-    return { error: `CSV header must include: ${clubHint} (phone${caller.role === 'super_admin' ? '' : ' and club_id'} is optional).` }
+  if (nameIdx === -1 || emailIdx === -1 || phoneIdx === -1 || certIdx === -1 || (caller.role === 'super_admin' && clubIdx === -1)) {
+    const required = caller.role === 'super_admin'
+      ? 'full_name, email, phone, club_id, certification_date'
+      : 'full_name, email, phone, certification_date (club_id is optional and ignored)'
+    return { error: `CSV header must include: ${required}.` }
   }
 
   const results: BulkGatekeeperRow[] = []
   let createdCount = 0
+  // The database check can't see rows from this same file that haven't been
+  // saved yet, so duplicates within the CSV are caught here.
+  const phonesInFile = new Map<string, number>()
 
   for (let i = 0; i < dataRows.length; i++) {
     const cells = dataRows[i]
     const rowNum = i + 2 // 1-indexed + header row
     const fullName = cells[nameIdx]?.trim()
     const email = cells[emailIdx]?.trim().toLowerCase()
-    const phone = phoneIdx !== -1 ? (cells[phoneIdx]?.trim() || null) : null
+    const parsedPhone = parsePhone(cells[phoneIdx])
     const clubId = forcedClubId ?? (clubIdx !== -1 ? cells[clubIdx]?.trim() : undefined)
     const certificationDate = cells[certIdx]?.trim()
 
-    if (!fullName || !email || !clubId || !certificationDate) {
+    if (!fullName || !email || !clubId || !certificationDate || (parsedPhone.ok && !parsedPhone.value)) {
       results.push({ row: rowNum, email: email || '(missing)', error: 'Missing required field(s).' })
       continue
     }
+    if (!parsedPhone.ok) {
+      results.push({ row: rowNum, email, error: parsedPhone.error })
+      continue
+    }
+    const phone = parsedPhone.value!
+    const firstRow = phonesInFile.get(phone)
+    if (firstRow) {
+      results.push({ row: rowNum, email, error: `Same phone number as row ${firstRow} in this file. Each user needs their own phone number.` })
+      continue
+    }
+    phonesInFile.set(phone, rowNum)
 
     const result = await inviteAndCreateGatekeeper({
       fullName, email, phone, preferredLanguage: 'en', clubId, certificationDate, actorId: user.id,
@@ -277,13 +303,16 @@ export async function updateGatekeeperAction(
   const knownVersion  = parseInt(formData.get('version') as string, 10)
   const fullName = (formData.get('full_name') as string | null)?.trim()
   const email    = (formData.get('email') as string | null)?.trim().toLowerCase()
-  const phone    = (formData.get('phone') as string | null)?.trim() || null
+  const parsedPhone = parsePhone(formData.get('phone') as string | null)
   const preferredLanguage = (formData.get('preferred_language') as string | null) || 'en'
   const clubId   = formData.get('club_id') as string | null
   const certificationDate = formData.get('certification_date') as string | null
 
   if (!fullName) return { error: 'Full name is required.' }
   if (!email)    return { error: 'Email is required.' }
+  if (!parsedPhone.ok) return { error: parsedPhone.error }
+  if (!parsedPhone.value) return { error: 'Phone number is required.' }
+  const phone = parsedPhone.value
   if (!clubId)   return { error: 'Assigned club is required.' }
   if (!certificationDate) return { error: 'Certification date is required.' }
 
@@ -293,12 +322,17 @@ export async function updateGatekeeperAction(
 
   const { data: current } = await supabase
     .from('profiles')
-    .select('version, email, club_id')
+    .select('version, email, club_id, phone')
     .eq('id', gatekeeperId)
     .single()
 
   if (!current) return { error: 'Gatekeeper not found.' }
   if (current.version !== knownVersion) return { conflict: true }
+
+  if (phoneChanged(current.phone, phone)) {
+    const phoneError = await checkPhoneAvailable(phone, { excludeUserId: gatekeeperId })
+    if (phoneError) return { error: phoneError }
+  }
 
   const qprExpiryDate = threeYearsFrom(certificationDate)
 

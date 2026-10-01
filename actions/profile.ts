@@ -2,6 +2,8 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { writeAuditLog } from '@/lib/audit'
+import { parsePhone } from '@/lib/phone'
+import { checkPhoneAvailable, phoneChanged } from '@/lib/phone-uniqueness.server'
 
 export type ProfileData = {
   id: string
@@ -38,14 +40,26 @@ export async function updateProfileAction(
   if (!user) return { error: 'Not authenticated.' }
 
   const full_name = (formData.get('full_name') as string | null)?.trim()
-  const phone     = (formData.get('phone')     as string | null)?.trim() || null
+  const parsedPhone = parsePhone(formData.get('phone') as string | null)
   const title     = (formData.get('title')     as string | null)?.trim() || null
   const preferred_language = (formData.get('preferred_language') as string | null) || 'en'
   const office_location = (formData.get('office_location') as string | null)?.trim() || null
 
   if (!full_name) return { error: 'Full name is required.' }
   if (full_name.length > 100) return { error: 'Full name must be 100 characters or fewer.' }
-  if (phone && phone.length > 30) return { error: 'Phone number must be 30 characters or fewer.' }
+  if (!parsedPhone.ok) return { error: parsedPhone.error }
+  const phone = parsedPhone.value
+
+  const { data: current } = await supabase
+    .from('profiles')
+    .select('phone, role')
+    .eq('id', user.id)
+    .single()
+  if (current?.role === 'gatekeeper' && !phone) return { error: 'Phone number is required.' }
+  if (phone && phoneChanged(current?.phone, phone)) {
+    const phoneError = await checkPhoneAvailable(phone, { excludeUserId: user.id })
+    if (phoneError) return { error: phoneError }
+  }
   if (title && title.length > 150) return { error: 'Job title must be 150 characters or fewer.' }
   if (office_location && office_location.length > 200) return { error: 'Office location must be 200 characters or fewer.' }
 

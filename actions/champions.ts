@@ -7,6 +7,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { writeAuditLog } from '@/lib/audit'
 import { endDelegationsForDeactivatedUser } from '@/actions/permissions'
 import { createInvitedUser } from '@/lib/create-invited-user'
+import { parsePhone } from '@/lib/phone'
+import { checkPhoneAvailable, phoneChanged } from '@/lib/phone-uniqueness.server'
 
 export type ChampionActionState = {
   error?: string
@@ -21,12 +23,14 @@ export async function createChampionAction(
 ): Promise<ChampionActionState> {
   const fullName = (formData.get('full_name') as string | null)?.trim()
   const email    = (formData.get('email')     as string | null)?.trim().toLowerCase()
-  const phone    = (formData.get('phone')     as string | null)?.trim() || null
+  const parsedPhone = parsePhone(formData.get('phone') as string | null)
   const title    = (formData.get('title')     as string | null)?.trim() || null
   const clubId   = formData.get('club_id')    as string | null
 
   if (!fullName) return { error: 'Full name is required.' }
   if (!email)    return { error: 'Email is required.' }
+  if (!parsedPhone.ok) return { error: parsedPhone.error }
+  const phone = parsedPhone.value // optional for Champions
   if (!clubId)   return { error: 'Club assignment is required.' }
 
   const supabase = await createClient()
@@ -41,6 +45,13 @@ export async function createChampionAction(
     .maybeSingle()
 
   if (existing) return { error: 'An account with this email already exists.' }
+
+  // Every user needs their own number — checked before createInvitedUser()
+  // below sends a real account email.
+  if (phone) {
+    const phoneError = await checkPhoneAvailable(phone)
+    if (phoneError) return { error: phoneError }
+  }
 
   const admin = createAdminClient()
 
@@ -90,12 +101,14 @@ export async function updateChampionAction(
   const knownVersion = parseInt(formData.get('version') as string, 10)
   const fullName     = (formData.get('full_name')  as string | null)?.trim()
   const email        = (formData.get('email')      as string | null)?.trim().toLowerCase()
-  const phone        = (formData.get('phone')      as string | null)?.trim() || null
+  const parsedPhone  = parsePhone(formData.get('phone') as string | null)
   const title        = (formData.get('title')      as string | null)?.trim() || null
   const clubId       = formData.get('club_id')     as string | null
 
   if (!fullName) return { error: 'Full name is required.' }
   if (!email)    return { error: 'Email is required.' }
+  if (!parsedPhone.ok) return { error: parsedPhone.error }
+  const phone = parsedPhone.value
   if (!clubId)   return { error: 'Club assignment is required.' }
 
   const supabase = await createClient()
@@ -105,12 +118,17 @@ export async function updateChampionAction(
   // OCC: fetch current profile to check version and detect changes
   const { data: current } = await supabase
     .from('profiles')
-    .select('version, email, club_id')
+    .select('version, email, club_id, phone')
     .eq('id', championId)
     .single()
 
   if (!current) return { error: 'Champion not found.' }
   if (current.version !== knownVersion) return { conflict: true }
+
+  if (phone && phoneChanged(current.phone, phone)) {
+    const phoneError = await checkPhoneAvailable(phone, { excludeUserId: championId })
+    if (phoneError) return { error: phoneError }
+  }
 
   const { data: updated, error: updateError } = await supabase
     .from('profiles')
