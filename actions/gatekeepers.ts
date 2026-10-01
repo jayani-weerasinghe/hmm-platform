@@ -7,7 +7,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { writeAuditLog } from '@/lib/audit'
 import { createInvitedUser } from '@/lib/create-invited-user'
 import { parsePhone } from '@/lib/phone'
-import { checkPhoneAvailable, phoneChanged } from '@/lib/phone-uniqueness.server'
+import { checkPhoneAvailable, describePhoneDbError, phoneChanged } from '@/lib/phone-uniqueness.server'
 
 export type GatekeeperActionState = {
   error?: string
@@ -106,7 +106,7 @@ async function inviteAndCreateGatekeeper(params: {
     if (profileError.code === '23503') {
       return { error: 'Could not save this gatekeeper — one of the referenced records (e.g. the club) no longer exists.' }
     }
-    return { error: profileError.message }
+    return { error: describePhoneDbError(profileError) ?? profileError.message }
   }
 
   await writeAuditLog({
@@ -352,6 +352,9 @@ export async function updateGatekeeperAction(
     .select('id')
 
   if (updateError) {
+    // Phone first — a phone clash is also a 23505, and isn't an email problem.
+    const phoneDbError = describePhoneDbError(updateError)
+    if (phoneDbError) return { error: phoneDbError }
     if (updateError.code === '23505') return { error: 'That email is already used by another account.' }
     return { error: updateError.message }
   }

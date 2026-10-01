@@ -3,7 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { writeAuditLog } from '@/lib/audit'
 import { parsePhone } from '@/lib/phone'
-import { checkPhoneAvailable, phoneChanged } from '@/lib/phone-uniqueness.server'
+import { checkPhoneAvailable, describePhoneDbError, phoneChanged } from '@/lib/phone-uniqueness.server'
 
 export type ProfileData = {
   id: string
@@ -68,7 +68,7 @@ export async function updateProfileAction(
     .update({ full_name, phone, title, preferred_language, office_location, updated_at: new Date().toISOString() })
     .eq('id', user.id)
 
-  if (error) return { error: 'Failed to save changes. Please try again.' }
+  if (error) return { error: describePhoneDbError(error) ?? 'Failed to save changes. Please try again.' }
 
   await writeAuditLog({
     actorId: user.id,

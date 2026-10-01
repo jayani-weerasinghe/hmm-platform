@@ -39,6 +39,25 @@ export async function checkPhoneAvailable(
   return 'This phone number is already registered to another user. Each user needs their own phone number.'
 }
 
+// Readable messages for the database-level phone rules (migration
+// 20261001000000_unique_user_phone) — these only fire if something slips
+// past the checks above, e.g. two people saving the same number at the same
+// moment. Returns null for errors that aren't about the phone.
+export function describePhoneDbError(error: { code?: string; message?: string } | null): string | null {
+  if (!error) return null
+  const message = error.message ?? ''
+  if (error.code === '23505' && message.includes('profiles_phone_unique')) {
+    return 'This phone number is already registered to another user. Each user needs their own phone number.'
+  }
+  if (error.code === '23514' && message.includes('profiles_gatekeeper_phone_required')) {
+    return 'Phone number is required.'
+  }
+  if (error.code === '22023' && message.includes('Invalid phone number')) {
+    return 'Enter a valid phone number, e.g. 077 123 4567 or +94 77 123 4567.'
+  }
+  return null
+}
+
 // For an edit: only a number that's actually changing is checked, so a
 // record that already shares a number (from before this rule existed) can
 // still be edited as long as its number is left as it is.
