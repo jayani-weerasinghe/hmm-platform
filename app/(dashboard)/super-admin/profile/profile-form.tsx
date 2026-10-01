@@ -114,7 +114,7 @@ export function ProfileForm({
             {copied ? 'Copied!' : 'Copy'}
           </button>
         </div>
-        <p className="text-[11px] text-[#94A3B8]">Used for sign-in — contact another Super Admin to change this.</p>
+        <p className="text-[11px] text-[#94A3B8]">Used for sign-in — change it under Security &amp; Sign-in.</p>
       </div>
 
       <div className="grid grid-cols-2 gap-4">

@@ -2,7 +2,9 @@
 
 import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
+import { syncProfileEmail } from '@/lib/email-sync.server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { LOGIN_PATH, parsePortal, portalForRole } from '@/lib/portals'
 import {
@@ -38,6 +40,9 @@ export async function loginAction(
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Authentication failed. Please try again.' }
+
+  // A confirmed self-service email change may not have reached profiles yet.
+  await syncProfileEmail(user.id, user.email)
 
   const { data: profile } = await supabase
     .from('profiles')
@@ -305,6 +310,128 @@ export async function changePasswordAction(
   await supabase.auth.signOut({ scope: 'others' })
 
   return { success: true }
+}
+
+// ---------------------------------------------------------------------------
+// Change sign-in email (Super Admin only) — Profile → Security & Sign-in
+// ---------------------------------------------------------------------------
+// A deliberate, signed-off extension of Story 3.1 Scenario 03 (which shows the
+// login email as read-only): the email is still never directly editable —
+// it only changes after confirmation. Safeguards: re-enter the current
+// password; the new address must be unused; Supabase's "Secure email change"
+// then emails a confirmation link to BOTH the current and the new address,
+// and nothing changes until both are clicked. profiles.email follows via
+// syncProfileEmail() once Supabase applies the change.
+export async function requestEmailChangeAction(
+  _prev: { error?: string; success?: boolean; newEmail?: string } | null,
+  formData: FormData
+) {
+  const newEmail = ((formData.get('newEmail') as string) ?? '').trim().toLowerCase()
+  const password = (formData.get('currentPassword') as string) ?? ''
+
+  if (!newEmail || !password) return { error: 'New email and current password are required.' }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) return { error: 'Please enter a valid email address.' }
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user?.email) return { error: 'Session expired. Please log in again.' }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+  if (profile?.role !== 'super_admin') return { error: 'Only Super Admins can change their sign-in email here.' }
+
+  if (newEmail === user.email.toLowerCase()) {
+    return { error: 'That is already your sign-in email.' }
+  }
+
+  // Verify the current password with a throwaway client, so the user's real
+  // session cookies aren't replaced by a fresh sign-in. Same generic message
+  // as Change Password — don't say which part failed.
+  const verifier = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { auth: { persistSession: false, autoRefreshToken: false } }
+  )
+  const { error: verifyError } = await verifier.auth.signInWithPassword({ email: user.email, password })
+  if (verifyError) return { error: 'Incorrect password. Please try again.' }
+  await verifier.auth.signOut({ scope: 'local' })
+
+  // Unused address only — profiles.email is UNIQUE, and a clash would
+  // otherwise only surface after the confirmation links were already sent.
+  const admin = createAdminClient()
+  const { data: clash } = await admin
+    .from('profiles')
+    .select('id')
+    .ilike('email', escapeLikePattern(newEmail))
+    .neq('id', user.id)
+    .limit(1)
+  if (clash && clash.length > 0) return { error: 'That email is already used by another account.' }
+
+  // The "Change Email Address" email template builds its link from this
+  // ({{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=email_change), so it
+  // opens our confirmation page rather than confirming on click — email
+  // security scanners open links automatically, but don't press buttons.
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
+  const { error: updateError } = await supabase.auth.updateUser(
+    { email: newEmail },
+    { emailRedirectTo: `${siteUrl}/auth/confirm-email-change` }
+  )
+  if (updateError) {
+    console.error('[requestEmailChangeAction] updateUser failed:', updateError.message)
+    const code = (updateError as { code?: string }).code
+    if (code === 'email_exists') return { error: 'That email is already used by another account.' }
+    if (code === 'over_email_send_rate_limit' || updateError.status === 429) {
+      return { error: 'Too many requests. Please wait a minute and try again.' }
+    }
+    return { error: 'Could not start the email change. Please try again.' }
+  }
+
+  await writeAuditLog({
+    actorId: user.id,
+    action: 'auth.email_change_requested',
+    entityType: 'user',
+    entityId: user.id,
+    details: { from: user.email, to: newEmail },
+  })
+
+  return { success: true, newEmail }
+}
+
+// Runs only when a person presses "Confirm" on /auth/confirm-email-change —
+// never on simply opening the emailed link. With Secure email change, each
+// address gets its own link: the first confirmation leaves the change
+// pending, the second applies it.
+export async function confirmEmailChangeAction(
+  _prev: { status?: 'partial' | 'done' | 'error'; signedIn?: boolean } | null,
+  formData: FormData
+): Promise<{ status: 'partial' | 'done' | 'error'; signedIn?: boolean }> {
+  const tokenHash = (formData.get('token_hash') as string) ?? ''
+  if (!tokenHash) return { status: 'error' }
+
+  // Verified on a throwaway client so confirming never signs this browser in
+  // as that account (the link may be opened on any device, by anyone who can
+  // read that inbox) — any session it returns is revoked straight away.
+  const verifier = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { auth: { persistSession: false, autoRefreshToken: false } }
+  )
+  const { data, error } = await verifier.auth.verifyOtp({ token_hash: tokenHash, type: 'email_change' })
+  if (error) return { status: 'error' }
+
+  // No session back = Supabase accepted this address but is still waiting
+  // for the other one.
+  if (!data.session || !data.user) return { status: 'partial' }
+
+  await verifier.auth.signOut({ scope: 'local' })
+  await syncProfileEmail(data.user.id, data.user.email)
+
+  const supabase = await createClient()
+  const { data: { user: current } } = await supabase.auth.getUser()
+  return { status: 'done', signedIn: current?.id === data.user.id }
 }
 
 // ---------------------------------------------------------------------------
