@@ -8,6 +8,9 @@ export function CreateClubForm({ onClose }: { onClose?: () => void }) {
   const router = useRouter()
   const close = onClose ?? (() => router.push('/super-admin/clubs'))
   const [state, formAction, isPending] = useActionState(createClubAction, null)
+  // Values sent back with an error (see createClubAction), so a failed save
+  // keeps what was typed instead of clearing the whole form.
+  const v = state?.values
 
   useEffect(() => {
     if (state?.success) close()
@@ -55,6 +58,7 @@ export function CreateClubForm({ onClose }: { onClose?: () => void }) {
                 <input
                   id="name"
                   name="name"
+                  defaultValue={v?.name}
                   type="text"
                   required
                   className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
@@ -67,6 +71,7 @@ export function CreateClubForm({ onClose }: { onClose?: () => void }) {
                 <input
                   id="club_code"
                   name="club_code"
+                  defaultValue={v?.club_code}
                   type="text"
                   required
                   placeholder="e.g. CLB-007"
@@ -98,6 +103,7 @@ export function CreateClubForm({ onClose }: { onClose?: () => void }) {
                 <input
                   id="location"
                   name="location"
+                  defaultValue={v?.location}
                   type="text"
                   required
                   className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] pl-9 pr-3.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
@@ -121,6 +127,7 @@ export function CreateClubForm({ onClose }: { onClose?: () => void }) {
                   <input
                     id="contact_email"
                     name="contact_email"
+                  defaultValue={v?.contact_email}
                     type="email"
                     className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] pl-9 pr-3.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                   />
@@ -141,6 +148,7 @@ export function CreateClubForm({ onClose }: { onClose?: () => void }) {
                   <input
                     id="contact_phone"
                     name="contact_phone"
+                  defaultValue={v?.contact_phone}
                     type="tel"
                     className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] pl-9 pr-3.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                   />
@@ -155,6 +163,7 @@ export function CreateClubForm({ onClose }: { onClose?: () => void }) {
               <textarea
                 id="description"
                 name="description"
+                defaultValue={v?.description}
                 rows={3}
                 className="w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 py-2.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
               />
