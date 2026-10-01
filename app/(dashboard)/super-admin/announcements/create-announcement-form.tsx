@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useEffect, useRef, useState } from 'react'
+import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { useRouter } from 'next/navigation'
 import { createAnnouncementAction } from '@/actions/announcements'
 
@@ -39,6 +40,7 @@ export function CreateAnnouncementForm({
   const router = useRouter()
   const close = onClose ?? (() => router.push('/super-admin/announcements'))
   const [state, formAction, isPending] = useActionState(createAnnouncementAction, null)
+  const submit = useSubmitWithoutReset(formAction)
 
   const [audience, setAudience] = useState('all')
   const [priority, setPriority] = useState('standard')
@@ -88,7 +90,7 @@ export function CreateAnnouncementForm({
         </button>
       </div>
 
-      <form action={formAction} className="flex flex-1 flex-col overflow-hidden">
+      <form onSubmit={submit} className="flex flex-1 flex-col overflow-hidden">
         <input type="hidden" name="audience" value={audience} />
         <input type="hidden" name="priority" value={priority} />
         <input type="hidden" name="is_pinned" value={isPinned ? 'true' : ''} />

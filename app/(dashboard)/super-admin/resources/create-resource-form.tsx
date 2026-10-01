@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useEffect, useRef, useState } from 'react'
+import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { useRouter } from 'next/navigation'
 import { createResourceAction } from '@/actions/resources'
 
@@ -91,6 +92,7 @@ export function CreateResourceForm({ categories, onClose }: { categories: string
   const router = useRouter()
   const close = onClose ?? (() => router.push('/super-admin/resources'))
   const [state, formAction, isPending] = useActionState(createResourceAction, null)
+  const submit = useSubmitWithoutReset(formAction)
   const [type, setType] = useState('video')
 
   useEffect(() => {
@@ -119,7 +121,7 @@ export function CreateResourceForm({ categories, onClose }: { categories: string
         </button>
       </div>
 
-      <form action={formAction} className="flex flex-1 flex-col overflow-hidden">
+      <form onSubmit={submit} className="flex flex-1 flex-col overflow-hidden">
         <input type="hidden" name="type" value={type} />
 
         <div className="flex flex-1 flex-col gap-4 overflow-y-auto bg-[#F8FAFC] p-6">

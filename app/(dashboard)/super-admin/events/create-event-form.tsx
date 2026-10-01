@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useEffect, useState } from 'react'
+import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { useRouter } from 'next/navigation'
 import { createEventAction } from '@/actions/events'
 import { EVENT_TYPE_STYLES } from './event-type'
@@ -30,6 +31,7 @@ export function CreateEventForm({
   const router = useRouter()
   const close = onClose ?? (() => router.push(fallbackPath))
   const [state, formAction, isPending] = useActionState(createEventAction, null)
+  const submit = useSubmitWithoutReset(formAction)
   const [type, setType] = useState('qpr_session')
 
   useEffect(() => {
@@ -58,7 +60,7 @@ export function CreateEventForm({
         </button>
       </div>
 
-      <form action={formAction} className="flex flex-1 flex-col overflow-hidden">
+      <form onSubmit={submit} className="flex flex-1 flex-col overflow-hidden">
         <input type="hidden" name="type" value={type} />
 
         <div className="flex flex-1 flex-col gap-4 overflow-y-auto bg-[#F8FAFC] p-6">

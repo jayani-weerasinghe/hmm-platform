@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useEffect, useState } from 'react'
+import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { useRouter } from 'next/navigation'
 import { createAnnouncementAction } from '@/actions/announcements'
 
@@ -24,6 +25,7 @@ export function CreateAnnouncementForm({
   const router = useRouter()
   const close = onClose ?? (() => router.push('/champion/announcements'))
   const [state, formAction, isPending] = useActionState(createAnnouncementAction, null)
+  const submit = useSubmitWithoutReset(formAction)
 
   const [scheduleMode, setScheduleMode] = useState<'now' | 'later'>('now')
   const [hasExpiry, setHasExpiry] = useState(false)
@@ -53,7 +55,7 @@ export function CreateAnnouncementForm({
         </button>
       </div>
 
-      <form action={formAction} className="flex flex-1 flex-col overflow-hidden">
+      <form onSubmit={submit} className="flex flex-1 flex-col overflow-hidden">
         {scheduleMode === 'now' && <input type="hidden" name="publish_date" value={todayInputValue()} />}
         <input type="hidden" name="intent" value="publish" />
 
