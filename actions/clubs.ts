@@ -65,6 +65,9 @@ export async function createClubAction(
     details: { club_code: clubCode, name },
   })
 
+  // Without this the list kept its cached render, so the new club only
+  // appeared after a manual refresh (every other create action does this).
+  revalidatePath('/super-admin/clubs')
   return { success: true }
 }
 
