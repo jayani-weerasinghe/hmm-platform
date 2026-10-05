@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useEffect, useMemo, useRef, useState } from 'react'
+import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { useRouter } from 'next/navigation'
 import { createGatekeeperAction, createGatekeepersBulkAction } from '@/actions/gatekeepers'
 
@@ -80,6 +81,8 @@ export function CreateGatekeeperForm({
 
   const [singleState, singleAction, singlePending] = useActionState(createGatekeeperAction, null)
   const [bulkState, bulkAction, bulkPending] = useActionState(createGatekeepersBulkAction, null)
+  const submitSingle = useSubmitWithoutReset(singleAction)
+  const submitBulk = useSubmitWithoutReset(bulkAction)
 
   const [clubId, setClubId] = useState('')
   const [certDate, setCertDate] = useState('')
@@ -146,7 +149,7 @@ export function CreateGatekeeperForm({
       </div>
 
       {mode === 'single' ? (
-        <form action={singleAction} className="flex flex-1 flex-col overflow-hidden">
+        <form onSubmit={submitSingle} className="flex flex-1 flex-col overflow-hidden">
           <div className="flex flex-1 flex-col gap-4 overflow-y-auto bg-[#F8FAFC] p-6">
             {singleState?.error && (
               <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">{singleState.error}</div>
@@ -302,7 +305,7 @@ export function CreateGatekeeperForm({
           </div>
         </form>
       ) : (
-        <form action={bulkAction} className="flex flex-1 flex-col overflow-hidden">
+        <form onSubmit={submitBulk} className="flex flex-1 flex-col overflow-hidden">
           <div className="flex flex-1 flex-col gap-4 overflow-y-auto bg-[#F8FAFC] p-6">
             {bulkState?.error && (
               <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">{bulkState.error}</div>

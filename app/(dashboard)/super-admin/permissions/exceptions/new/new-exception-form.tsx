@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useEffect } from 'react'
+import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { useRouter } from 'next/navigation'
 import { grantIndividualExceptionAction } from '@/actions/permissions'
 
@@ -14,6 +15,7 @@ export function NewExceptionForm({ users, onClose }: { users: UserOption[]; onCl
   const router = useRouter()
   const close = onClose ?? (() => router.push('/super-admin/permissions/exceptions'))
   const [state, formAction, isPending] = useActionState(grantIndividualExceptionAction, null)
+  const submit = useSubmitWithoutReset(formAction)
 
   useEffect(() => {
     if (state?.success) close()
@@ -35,7 +37,7 @@ export function NewExceptionForm({ users, onClose }: { users: UserOption[]; onCl
         </button>
       </div>
 
-      <form action={formAction}>
+      <form onSubmit={submit}>
         <div className="flex flex-col gap-5 bg-[#F8FAFC] p-6">
           {state?.error && (
             <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">

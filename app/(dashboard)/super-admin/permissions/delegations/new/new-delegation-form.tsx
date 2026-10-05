@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useEffect } from 'react'
+import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { useRouter } from 'next/navigation'
 import { createDelegationAction } from '@/actions/permissions'
 
@@ -14,6 +15,7 @@ export function NewDelegationForm({ users, onClose }: { users: UserOption[]; onC
   const router = useRouter()
   const close = onClose ?? (() => router.push('/super-admin/permissions/delegations'))
   const [state, formAction, isPending] = useActionState(createDelegationAction, null)
+  const submit = useSubmitWithoutReset(formAction)
 
   useEffect(() => {
     if (state?.success) close()
@@ -35,7 +37,7 @@ export function NewDelegationForm({ users, onClose }: { users: UserOption[]; onC
         </button>
       </div>
 
-      <form action={formAction}>
+      <form onSubmit={submit}>
         <div className="flex flex-col gap-5 bg-[#F8FAFC] p-6">
           {state?.error && (
             <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">

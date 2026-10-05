@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useEffect } from 'react'
+import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createChampionAction } from '@/actions/champions'
@@ -11,6 +12,7 @@ export function CreateChampionForm({ clubs, onClose }: { clubs: Club[]; onClose?
   const router = useRouter()
   const close = onClose ?? (() => router.push('/super-admin/champions'))
   const [state, formAction, isPending] = useActionState(createChampionAction, null)
+  const submit = useSubmitWithoutReset(formAction)
 
   useEffect(() => {
     if (state?.success) close()
@@ -37,7 +39,7 @@ export function CreateChampionForm({ clubs, onClose }: { clubs: Club[]; onClose?
         </button>
       </div>
 
-      <form action={formAction} className="flex flex-1 flex-col overflow-hidden">
+      <form onSubmit={submit} className="flex flex-1 flex-col overflow-hidden">
         <div className="flex flex-1 flex-col gap-4 overflow-y-auto bg-[#F8FAFC] p-6">
           {state?.error && (
             <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">

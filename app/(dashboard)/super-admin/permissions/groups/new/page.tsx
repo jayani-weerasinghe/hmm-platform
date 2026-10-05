@@ -1,11 +1,13 @@
 'use client'
 
 import { useActionState } from 'react'
+import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import Link from 'next/link'
 import { createGroupAction } from '@/actions/permissions'
 
 export default function NewGroupPage() {
   const [state, formAction, isPending] = useActionState(createGroupAction, null)
+  const submit = useSubmitWithoutReset(formAction)
 
   return (
     <div className="font-[family-name:var(--font-inter)]">
@@ -22,7 +24,7 @@ export default function NewGroupPage() {
             {state.error}
           </div>
         )}
-        <form action={formAction} className="flex flex-col gap-5">
+        <form onSubmit={submit} className="flex flex-col gap-5">
           <div>
             <label htmlFor="name" className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">
               Group Name <span className="text-[#DC2626]">*</span>
