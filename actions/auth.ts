@@ -1,7 +1,16 @@
 'use server'
 
 import { redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { LOGIN_PATH, parsePortal, portalForRole } from '@/lib/portals'
+import {
+  RESET_GRANT_COOKIE,
+  RESET_GRANT_MAX_AGE_SECONDS,
+  RESET_PORTAL_COOKIE,
+  hasResetGrant,
+} from '@/lib/password-reset-grant.server'
 import { validatePassword } from '@/lib/password-validation'
 import { isPasswordReused, recordPasswordHash } from '@/lib/password-history.server'
 import { writeAuditLog } from '@/lib/audit'
@@ -82,15 +91,56 @@ export async function forgotPasswordAction(
   const email = (formData.get('email') as string).trim()
   if (!email) return { sent: false, error: 'Email is required.' }
 
+  // Each portal's Forgot Password page only serves its own accounts: the
+  // Super Admin page only emails Super Admins, the Champion page only
+  // Champions, and neither emails Gatekeepers (mobile-only).
+  const portal = parsePortal(formData.get('portal'))
+
+  // Remembers which portal's page requested the link, so /auth/callback can
+  // send an expired link back to the right Forgot Password page. Set on every
+  // request (not only when a link is sent) so the response never differs.
+  ;(await cookies()).set(RESET_PORTAL_COOKIE, portal, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    path: '/',
+    maxAge: RESET_GRANT_MAX_AGE_SECONDS,
+  })
+
+  // Scenario 02: the response is identical whether the email is unregistered,
+  // belongs to a different portal's role, or really gets a link — so this
+  // page never reveals whether (or as what) an account exists.
+  const admin = createAdminClient()
+  const { data: matches } = await admin
+    .from('profiles')
+    .select('role')
+    .ilike('email', escapeLikePattern(email))
+    .limit(2)
+
+  const role = matches?.length === 1 ? matches[0].role : null
+  if (portalForRole(role) !== portal) return { sent: true }
+
   const supabase = await createClient()
   const siteUrl  = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
 
-  // Scenario 02: always show generic message regardless of whether the email exists
-  await supabase.auth.resetPasswordForEmail(email, {
+  // redirectTo must stay exactly as registered in Supabase's Redirect URLs
+  // allow-list — adding a query param here (e.g. &portal=…) made Supabase
+  // reject it and fall back to the Site URL, which lands on /login. That's
+  // why the portal travels in a cookie instead (above).
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: `${siteUrl}/auth/callback?next=/reset-password`,
   })
+  // Still shown as "sent" to the user (see above), but logged so real
+  // delivery failures (SMTP errors, rate limits) aren't invisible.
+  if (error) console.error('[forgotPasswordAction] resetPasswordForEmail failed:', error.message)
 
   return { sent: true }
+}
+
+// ilike treats % and _ as wildcards — escape them so this is an exact,
+// case-insensitive email match.
+function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, (c) => `\\${c}`)
 }
 
 // ---------------------------------------------------------------------------
@@ -110,9 +160,15 @@ export async function resetPasswordAction(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Session expired. Please request a new reset link.' }
 
+  // Only a session that came from a reset-email link may set a password
+  // without the current one — see lib/password-reset-grant.server.ts.
+  if (!(await hasResetGrant())) {
+    return { error: 'This reset link has expired or is no longer valid. Please request a new one.' }
+  }
+
   const { data: profile } = await supabase
     .from('profiles')
-    .select('full_name, email')
+    .select('full_name, email, role')
     .eq('id', user.id)
     .single()
 
@@ -153,8 +209,12 @@ export async function resetPasswordAction(
   // login page instead of being bounced straight to the dashboard by
   // middleware's "authenticated user hitting /login" rule.
   await supabase.auth.signOut()
+  ;(await cookies()).delete(RESET_GRANT_COOKIE)
 
-  redirect('/login?reset=success')
+  // Back to the account's own portal — a Champion sent to the Super Admin
+  // login would just be refused there by loginAction's portal check.
+  const portal = portalForRole(profile?.role) ?? 'super_admin'
+  redirect(`${LOGIN_PATH[portal]}?reset=success`)
 }
 
 // ---------------------------------------------------------------------------
