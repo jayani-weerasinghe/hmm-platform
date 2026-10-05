@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useMemo, useRef, useState } from 'react'
 import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { useRouter } from 'next/navigation'
+import { certificationDateInputProps } from '@/lib/certification-date'
 import { createGatekeeperAction, createGatekeepersBulkAction } from '@/actions/gatekeepers'
 
 interface Club { id: string; name: string; club_code: string | null }
@@ -261,7 +262,7 @@ export function CreateGatekeeperForm({
                       Certification Date <span className="text-[#DC2626]">*</span>
                     </label>
                     <input
-                      id="certification_date" name="certification_date" type="date" required
+                      id="certification_date" name="certification_date" type="date" required {...certificationDateInputProps()}
                       value={certDate} onChange={e => setCertDate(e.target.value)}
                       className="h-10 w-full rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                     />
@@ -316,7 +317,7 @@ export function CreateGatekeeperForm({
               <p className="text-[12px] leading-[18px] text-[#475569]">
                 Header row required, exactly: <code className="rounded bg-[#F1F5F9] px-1.5 py-0.5 font-mono text-[11px]">full_name,email,phone,club_id,certification_date</code>
                 <br />
-                <code className="rounded bg-[#F1F5F9] px-1.5 py-0.5 font-mono text-[11px]">club_id</code> must be a real club&apos;s internal ID. <code className="rounded bg-[#F1F5F9] px-1.5 py-0.5 font-mono text-[11px]">certification_date</code> as YYYY-MM-DD. <code className="rounded bg-[#F1F5F9] px-1.5 py-0.5 font-mono text-[11px]">phone</code> may be left blank.
+                <code className="rounded bg-[#F1F5F9] px-1.5 py-0.5 font-mono text-[11px]">club_id</code> must be a real club&apos;s internal ID. <code className="rounded bg-[#F1F5F9] px-1.5 py-0.5 font-mono text-[11px]">certification_date</code> as YYYY-MM-DD, not in the future. Every row needs its own <code className="rounded bg-[#F1F5F9] px-1.5 py-0.5 font-mono text-[11px]">phone</code> number.
               </p>
               <details className="text-[12px] text-[#475569]">
                 <summary className="cursor-pointer font-semibold text-[#003495]">Active club IDs</summary>
