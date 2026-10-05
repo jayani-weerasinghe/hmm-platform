@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { syncProfileEmail } from '@/lib/email-sync.server'
 import { ProfileForm } from './profile-form'
 
 export const metadata = { title: 'My Profile — HMM Super Admin' }
@@ -32,6 +33,11 @@ export default async function ProfilePage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+
+  // Pick up a confirmed email change before reading the profile below.
+  await syncProfileEmail(user.id, user.email)
+  // Set by Supabase while a requested email change awaits confirmation.
+  const pendingEmail = user.new_email ?? null
 
   const [{ data: profile }, { data: activeClubs }, { data: pwHistory }, { data: delegations }] = await Promise.all([
     supabase
@@ -178,12 +184,36 @@ export default async function ProfilePage() {
                   </span>
                   <div>
                     <h3 className="text-[18px] font-semibold text-[#0F172A] font-[family-name:var(--font-jakarta)]">Security &amp; Sign-in</h3>
-                    <p className="text-[12px] text-[#64748B]">Password &amp; Session Protection</p>
+                    <p className="text-[12px] text-[#64748B]">Sign-in Email, Password &amp; Session Protection</p>
                   </div>
                 </div>
               </div>
 
               <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between gap-3 rounded-xl bg-[#F8FAFC] p-[13px] ring-1 ring-[#E5E7EB]">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-white">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src="/icons/c2-email-field.svg" alt="" className="h-3 w-[15px]" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-[12px] font-bold tracking-[0.24px] text-[#0F172A]">Sign-in Email</p>
+                      <p className="truncate text-[13px] text-[#475569]">{profile.email}</p>
+                      {pendingEmail && (
+                        <p className="mt-0.5 text-[12px] text-[#D97706]">
+                          Pending change to <span className="font-semibold">{pendingEmail}</span> — confirm the links sent to both addresses
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <Link
+                    href="/super-admin/profile/change-email"
+                    className="flex flex-shrink-0 items-center gap-1.5 rounded-lg bg-white px-[15px] py-[7px] text-[12px] font-semibold tracking-[0.24px] text-[#0F172A] ring-1 ring-[#E5E7EB] transition-colors hover:bg-slate-50"
+                  >
+                    {pendingEmail ? 'Change Again' : 'Change Email'}
+                  </Link>
+                </div>
+
                 <div className="flex items-center justify-between rounded-xl bg-[#F8FAFC] p-[13px] ring-1 ring-[#E5E7EB]">
                   <div className="flex items-center gap-3">
                     <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white">
