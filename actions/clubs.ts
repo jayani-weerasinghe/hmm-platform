@@ -12,7 +12,16 @@ async function getActorId() {
   return user?.id
 }
 
-export type ClubActionState = { error?: string; success?: boolean } | null
+export type ClubFormValues = {
+  club_code: string
+  name: string
+  location: string
+  description: string
+  contact_email: string
+  contact_phone: string
+}
+
+export type ClubActionState = { error?: string; success?: boolean; values?: ClubFormValues } | null
 
 export async function createClubAction(
   _prev: ClubActionState,
@@ -25,9 +34,22 @@ export async function createClubAction(
   const contactEmail = (formData.get('contact_email') as string | null)?.trim() || null
   const contactPhone = (formData.get('contact_phone') as string | null)?.trim() || null
 
-  if (!clubCode) return { error: 'Club code is required.' }
-  if (!name)     return { error: 'Club name is required.' }
-  if (!location) return { error: 'Location is required.' }
+  // React resets a form after its action finishes — even when the action
+  // returns an error — so every error hands the entered values back for the
+  // form to re-fill, instead of wiping everything over one bad field.
+  const values: ClubFormValues = {
+    club_code: clubCode ?? '',
+    name: name ?? '',
+    location: location ?? '',
+    description: description ?? '',
+    contact_email: contactEmail ?? '',
+    contact_phone: contactPhone ?? '',
+  }
+  const fail = (error: string): ClubActionState => ({ error, values })
+
+  if (!clubCode) return fail('Club code is required.')
+  if (!name)     return fail('Club name is required.')
+  if (!location) return fail('Location is required.')
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -40,7 +62,7 @@ export async function createClubAction(
     .eq('club_code', clubCode)
     .maybeSingle()
 
-  if (existing) return { error: `Club code "${clubCode}" is already taken. Please choose a unique code.` }
+  if (existing) return fail(`Club code "${clubCode}" is already taken. Please choose a unique code.`)
 
   const { data: club, error } = await supabase
     .from('clubs')
@@ -53,8 +75,8 @@ export async function createClubAction(
     .single()
 
   if (error) {
-    if (error.code === '23505') return { error: 'A club with that name already exists.' }
-    return { error: error.message }
+    if (error.code === '23505') return fail('A club with that name already exists.')
+    return fail(error.message)
   }
 
   await writeAuditLog({
