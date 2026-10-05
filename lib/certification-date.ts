@@ -8,6 +8,8 @@
 
 const ORG_TIME_ZONE = 'Asia/Colombo'
 
+export const FUTURE_DATE_MESSAGE = 'Certification date cannot be in the future.'
+
 export function todayDateString(): string {
   // en-CA formats as YYYY-MM-DD, the same form a date input uses.
   return new Intl.DateTimeFormat('en-CA', {
@@ -30,6 +32,23 @@ export function validateCertificationDate(value: string | null | undefined): str
     return 'Certification date must be a valid date in YYYY-MM-DD format.'
   }
 
-  if (date > todayDateString()) return 'Certification date cannot be in the future.'
+  if (date > todayDateString()) return FUTURE_DATE_MESSAGE
   return null
+}
+
+// Props for a form's certification-date <input>: caps the picker at today,
+// and replaces the browser's own "Value must be … or earlier" bubble with the
+// same message the server returns, so the wording is identical everywhere.
+// The message is cleared as soon as the date is changed.
+export function certificationDateInputProps() {
+  return {
+    max: todayDateString(),
+    onInvalid: (event: { currentTarget: HTMLInputElement }) => {
+      const input = event.currentTarget
+      if (input.validity.rangeOverflow) input.setCustomValidity(FUTURE_DATE_MESSAGE)
+    },
+    onInput: (event: { currentTarget: HTMLInputElement }) => {
+      event.currentTarget.setCustomValidity('')
+    },
+  }
 }

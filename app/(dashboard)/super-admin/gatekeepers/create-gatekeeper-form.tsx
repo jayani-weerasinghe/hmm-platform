@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useMemo, useRef, useState } from 'react'
 import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { useRouter } from 'next/navigation'
-import { todayDateString } from '@/lib/certification-date'
+import { certificationDateInputProps } from '@/lib/certification-date'
 import { createGatekeeperAction, createGatekeepersBulkAction } from '@/actions/gatekeepers'
 
 interface Club { id: string; name: string; club_code: string | null }
@@ -262,7 +262,7 @@ export function CreateGatekeeperForm({
                       Certification Date <span className="text-[#DC2626]">*</span>
                     </label>
                     <input
-                      id="certification_date" name="certification_date" type="date" required max={todayDateString()}
+                      id="certification_date" name="certification_date" type="date" required {...certificationDateInputProps()}
                       value={certDate} onChange={e => setCertDate(e.target.value)}
                       className="h-10 w-full rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                     />

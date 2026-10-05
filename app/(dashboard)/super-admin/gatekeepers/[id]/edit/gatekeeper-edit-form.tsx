@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { todayDateString } from '@/lib/certification-date'
+import { certificationDateInputProps } from '@/lib/certification-date'
 import { updateGatekeeperAction } from '@/actions/gatekeepers'
 
 interface Gatekeeper {
@@ -148,7 +148,7 @@ export function GatekeeperEditForm({
                 Certification Date <span className="text-[#DC2626]">*</span>
               </label>
               <input
-                id="certification_date" name="certification_date" type="date" required max={todayDateString()}
+                id="certification_date" name="certification_date" type="date" required {...certificationDateInputProps()}
                 defaultValue={gatekeeper.qpr_certification_date ?? ''}
                 className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
               />
