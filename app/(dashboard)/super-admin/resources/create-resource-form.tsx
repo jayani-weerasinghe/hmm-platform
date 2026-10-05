@@ -4,6 +4,7 @@ import { useActionState, useEffect, useRef, useState } from 'react'
 import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { useRouter } from 'next/navigation'
 import { createResourceAction } from '@/actions/resources'
+import { RESOURCE_CATEGORIES } from '@/lib/resource-categories'
 
 const RESOURCE_TYPE_TABS = [
   { value: 'video', label: 'Video', icon: '/icons/resource-tab-video.svg', iconClass: 'h-[15px] w-[15px]' },
@@ -88,7 +89,7 @@ function FileDropZone() {
   )
 }
 
-export function CreateResourceForm({ categories, onClose }: { categories: string[]; onClose?: () => void }) {
+export function CreateResourceForm({ onClose }: { onClose?: () => void }) {
   const router = useRouter()
   const close = onClose ?? (() => router.push('/super-admin/resources'))
   const [state, formAction, isPending] = useActionState(createResourceAction, null)
@@ -172,19 +173,18 @@ export function CreateResourceForm({ categories, onClose }: { categories: string
                   Category <span className="text-[#DC2626]">*</span>
                 </label>
                 <div className="relative">
-                  <input
+                  <select
                     id="category"
                     name="category"
-                    type="text"
                     required
-                    list="category-options"
-                    autoComplete="off"
-                    placeholder="e.g. Crisis Intervention"
-                    className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 pr-9 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
-                  />
-                  <datalist id="category-options">
-                    {categories.map(c => <option key={c} value={c} />)}
-                  </datalist>
+                    defaultValue=""
+                    className="h-10 w-full appearance-none rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 pr-9 text-sm text-[#0F172A] invalid:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
+                  >
+                    <option value="" disabled>Select a category</option>
+                    {RESOURCE_CATEGORIES.map(c => (
+                      <option key={c} value={c} className="text-[#0F172A]">{c}</option>
+                    ))}
+                  </select>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src="/icons/chevron-down.svg" alt="" className="pointer-events-none absolute right-3.5 top-1/2 h-[6px] w-[9px] -translate-y-1/2" />
                 </div>

@@ -6,6 +6,7 @@ import mediaInfoFactory from 'mediainfo.js'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { writeAuditLog } from '@/lib/audit'
+import { isAllowedCategory, isResourceCategory } from '@/lib/resource-categories'
 
 const BUCKET = 'resources'
 const RESOURCE_TYPES = ['video', 'article', 'document', 'other'] as const
@@ -118,6 +119,7 @@ export async function createResourceAction(
 
   const validationError = validate(fields)
   if (validationError) return { error: validationError }
+  if (!isResourceCategory(fields.category)) return { error: 'Choose a category from the list.' }
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -216,6 +218,17 @@ export async function updateResourceAction(
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+
+  // Read the stored category from the database (not from the form), so only
+  // a genuinely unchanged older category is let through.
+  const { data: existing } = await supabase
+    .from('resources')
+    .select('category')
+    .eq('id', resourceId)
+    .single()
+  if (!isAllowedCategory(fields.category, existing?.category ?? null)) {
+    return { error: 'Choose a category from the list.' }
+  }
 
   let contentUrl = fields.contentUrl
   // Only set when a NEW file is uploaded this request — omitted from the
