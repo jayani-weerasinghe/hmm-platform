@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { updateResourceAction, type ResourceActionState } from '@/actions/resources'
+import { RESOURCE_CATEGORIES, isResourceCategory } from '@/lib/resource-categories'
 
 interface ResourceValues {
   id: string
@@ -107,15 +108,23 @@ export function EditResourceForm({ resource, onClose }: { resource: ResourceValu
             </div>
             <div>
               <label htmlFor="category" className={labelClass}>
-                Category
+                Category <span className="text-[#DC2626]">*</span>
               </label>
-              <input
+              <select
                 id="category"
                 name="category"
-                type="text"
+                required
                 defaultValue={resource.category ?? ''}
                 className={inputClass}
-              />
+              >
+                <option value="" disabled>Select a category</option>
+                {RESOURCE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                {/* A category from before the fixed list existed can be kept as
+                    is (the server allows it only while unchanged). */}
+                {resource.category && !isResourceCategory(resource.category) && (
+                  <option value={resource.category}>{resource.category} (older category)</option>
+                )}
+              </select>
             </div>
           </div>
 

@@ -4,13 +4,13 @@ import { useRouter } from 'next/navigation'
 import { ModalOverlay } from '@/components/modal-overlay'
 import { CreateResourceForm } from '../../create-resource-form'
 
-export function NewResourceModal({ categories }: { categories: string[] }) {
+export function NewResourceModal() {
   const router = useRouter()
   const close = () => router.back()
 
   return (
     <ModalOverlay onClose={close}>
-      <CreateResourceForm categories={categories} onClose={close} />
+      <CreateResourceForm onClose={close} />
     </ModalOverlay>
   )
 }
