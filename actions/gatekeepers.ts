@@ -7,6 +7,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { writeAuditLog } from '@/lib/audit'
 import { createInvitedUser } from '@/lib/create-invited-user'
 import { parsePhone } from '@/lib/phone'
+import { validateCertificationDate } from '@/lib/certification-date'
 import { checkPhoneAvailable, describePhoneDbError, phoneChanged } from '@/lib/phone-uniqueness.server'
 
 export type GatekeeperActionState = {
@@ -166,7 +167,8 @@ export async function createGatekeeperAction(
   if (!parsedPhone.ok) return { error: parsedPhone.error }
   if (!parsedPhone.value) return { error: 'Phone number is required.' }
   const phone = parsedPhone.value
-  if (!certificationDate) return { error: 'Certification date is required.' }
+  const certificationError = validateCertificationDate(certificationDate)
+  if (certificationError || !certificationDate) return { error: certificationError ?? 'Certification date is required.' }
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -264,6 +266,11 @@ export async function createGatekeepersBulkAction(
       results.push({ row: rowNum, email: email || '(missing)', error: 'Missing required field(s).' })
       continue
     }
+    const certificationError = validateCertificationDate(certificationDate)
+    if (certificationError) {
+      results.push({ row: rowNum, email, error: certificationError })
+      continue
+    }
     if (!parsedPhone.ok) {
       results.push({ row: rowNum, email, error: parsedPhone.error })
       continue
@@ -314,7 +321,8 @@ export async function updateGatekeeperAction(
   if (!parsedPhone.value) return { error: 'Phone number is required.' }
   const phone = parsedPhone.value
   if (!clubId)   return { error: 'Assigned club is required.' }
-  if (!certificationDate) return { error: 'Certification date is required.' }
+  const certificationError = validateCertificationDate(certificationDate)
+  if (certificationError || !certificationDate) return { error: certificationError ?? 'Certification date is required.' }
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

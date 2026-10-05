@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from 'react'
 import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { useRouter } from 'next/navigation'
+import { todayDateString } from '@/lib/certification-date'
 import { createGatekeeperAction, createGatekeepersBulkAction } from '@/actions/gatekeepers'
 
 const LANGUAGE_OPTIONS = [
@@ -213,7 +214,7 @@ export function CreateGatekeeperForm({
                       Certification Date <span className="text-[#DC2626]">*</span>
                     </label>
                     <input
-                      id="certification_date" name="certification_date" type="date" required
+                      id="certification_date" name="certification_date" type="date" required max={todayDateString()}
                       value={certDate} onChange={e => setCertDate(e.target.value)}
                       className="h-10 w-full rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                     />
@@ -268,7 +269,7 @@ export function CreateGatekeeperForm({
               <p className="text-[12px] leading-[18px] text-[#475569]">
                 Header row required, exactly: <code className="rounded bg-[#F1F5F9] px-1.5 py-0.5 font-mono text-[11px]">full_name,email,phone,certification_date</code>
                 <br />
-                All rows are added to <strong>{clubName}</strong>. <code className="rounded bg-[#F1F5F9] px-1.5 py-0.5 font-mono text-[11px]">certification_date</code> as YYYY-MM-DD. <code className="rounded bg-[#F1F5F9] px-1.5 py-0.5 font-mono text-[11px]">phone</code> may be left blank.
+                All rows are added to <strong>{clubName}</strong>. <code className="rounded bg-[#F1F5F9] px-1.5 py-0.5 font-mono text-[11px]">certification_date</code> as YYYY-MM-DD, not in the future. Every row needs its own <code className="rounded bg-[#F1F5F9] px-1.5 py-0.5 font-mono text-[11px]">phone</code> number.
               </p>
               <CsvDropZone fileName={csvFileName} onFile={f => setCsvFileName(f?.name ?? null)} />
             </div>
