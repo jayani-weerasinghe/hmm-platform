@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useEffect } from 'react'
+import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { useRouter } from 'next/navigation'
 import { updateChampionAction } from '@/actions/champions'
 
@@ -27,6 +28,7 @@ export function ChampionEditForm({
   const router = useRouter()
   const close = onClose ?? (() => router.push(`/super-admin/champions/${champion.id}`))
   const [state, formAction, isPending] = useActionState(updateChampionAction, null)
+  const submit = useSubmitWithoutReset(formAction)
 
   useEffect(() => {
     if (state?.success) close()
@@ -53,7 +55,7 @@ export function ChampionEditForm({
         </button>
       </div>
 
-      <form action={formAction} className="flex flex-1 flex-col overflow-hidden">
+      <form onSubmit={submit} className="flex flex-1 flex-col overflow-hidden">
         <input type="hidden" name="champion_id" value={champion.id} />
         <input type="hidden" name="version" value={champion.version} />
 

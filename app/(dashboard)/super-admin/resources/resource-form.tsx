@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useEffect, useState } from 'react'
+import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { useRouter } from 'next/navigation'
 import { updateResourceAction, type ResourceActionState } from '@/actions/resources'
 import { RESOURCE_CATEGORIES, isResourceCategory } from '@/lib/resource-categories'
@@ -27,6 +28,7 @@ export function EditResourceForm({ resource, onClose }: { resource: ResourceValu
   const router = useRouter()
   const close = onClose ?? (() => router.push('/super-admin/resources'))
   const [state, formAction, isPending] = useActionState<ResourceActionState, FormData>(updateResourceAction, null)
+  const submit = useSubmitWithoutReset(formAction)
   const [type, setType] = useState(resource.type)
 
   useEffect(() => {
@@ -49,7 +51,7 @@ export function EditResourceForm({ resource, onClose }: { resource: ResourceValu
         </button>
       </div>
 
-      <form action={formAction} className="flex flex-1 flex-col overflow-hidden">
+      <form onSubmit={submit} className="flex flex-1 flex-col overflow-hidden">
         <input type="hidden" name="resource_id" value={resource.id} />
         <input type="hidden" name="previous_content_url" value={resource.content_url ?? ''} />
 

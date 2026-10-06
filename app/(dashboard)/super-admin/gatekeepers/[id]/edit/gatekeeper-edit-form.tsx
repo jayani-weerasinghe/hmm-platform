@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useEffect } from 'react'
+import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { useRouter } from 'next/navigation'
 import { certificationDateInputProps } from '@/lib/certification-date'
 import { updateGatekeeperAction } from '@/actions/gatekeepers'
@@ -35,6 +36,7 @@ export function GatekeeperEditForm({
   const router = useRouter()
   const close = onClose ?? (() => router.push(`/super-admin/gatekeepers/${gatekeeper.id}`))
   const [state, formAction, isPending] = useActionState(updateGatekeeperAction, null)
+  const submit = useSubmitWithoutReset(formAction)
 
   useEffect(() => {
     if (state?.success) close()
@@ -61,7 +63,7 @@ export function GatekeeperEditForm({
         </button>
       </div>
 
-      <form action={formAction} className="flex flex-1 flex-col overflow-hidden">
+      <form onSubmit={submit} className="flex flex-1 flex-col overflow-hidden">
         <input type="hidden" name="gatekeeper_id" value={gatekeeper.id} />
         <input type="hidden" name="version" value={gatekeeper.version} />
 

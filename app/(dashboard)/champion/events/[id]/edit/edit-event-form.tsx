@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useEffect, useState } from 'react'
+import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { useRouter } from 'next/navigation'
 import { updateEventAction } from '@/actions/events'
 import { EVENT_TYPE_STYLES } from '@/app/(dashboard)/super-admin/events/event-type'
@@ -39,6 +40,7 @@ export function EditEventForm({
   const router = useRouter()
   const close = onClose ?? (() => router.push(fallbackPath))
   const [state, formAction, isPending] = useActionState(updateEventAction, null)
+  const submit = useSubmitWithoutReset(formAction)
   const [type, setType] = useState(event.type)
 
   useEffect(() => {
@@ -64,7 +66,7 @@ export function EditEventForm({
         </button>
       </div>
 
-      <form action={formAction} className="flex flex-1 flex-col overflow-hidden">
+      <form onSubmit={submit} className="flex flex-1 flex-col overflow-hidden">
         <input type="hidden" name="event_id" value={event.id} />
         <input type="hidden" name="type" value={type} />
 

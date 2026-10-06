@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useState } from 'react'
+import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { updateProfileAction } from '@/actions/profile'
 
 const LANGUAGE_OPTIONS = [
@@ -25,6 +26,7 @@ export function ProfileForm({
   email: string
 }) {
   const [state, formAction, isPending] = useActionState(updateProfileAction, null)
+  const submit = useSubmitWithoutReset(formAction)
   const [copied, setCopied] = useState(false)
 
   async function copyEmail() {
@@ -39,7 +41,7 @@ export function ProfileForm({
   }
 
   return (
-    <form action={formAction} className="flex flex-col gap-4">
+    <form onSubmit={submit} className="flex flex-col gap-4">
       {state?.error && (
         <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
           {state.error}
