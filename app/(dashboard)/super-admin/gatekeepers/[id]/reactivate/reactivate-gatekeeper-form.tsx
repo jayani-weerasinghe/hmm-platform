@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useEffect } from 'react'
+import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { useRouter } from 'next/navigation'
 import { reactivateGatekeeperAction } from '@/actions/gatekeepers'
 
@@ -21,6 +22,7 @@ export function ReactivateGatekeeperForm({
   const router = useRouter()
   const close = onClose ?? (() => router.push(`/super-admin/gatekeepers/${gatekeeper.id}`))
   const [state, formAction, isPending] = useActionState(reactivateGatekeeperAction, null)
+  const submit = useSubmitWithoutReset(formAction)
   const clubIsInactive = currentClub && !currentClub.is_active
 
   useEffect(() => {
@@ -46,7 +48,7 @@ export function ReactivateGatekeeperForm({
         </button>
       </div>
 
-      <form action={formAction}>
+      <form onSubmit={submit}>
         <input type="hidden" name="gatekeeper_id" value={gatekeeper.id} />
         <div className="flex flex-col gap-4 bg-[#F8FAFC] p-6">
           {clubIsInactive && (

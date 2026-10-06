@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useEffect } from 'react'
+import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { useRouter } from 'next/navigation'
 import { updateClubAction } from '@/actions/clubs'
 
@@ -19,6 +20,7 @@ export function ClubEditForm({ club, onClose }: { club: Club; onClose?: () => vo
   const router = useRouter()
   const close = onClose ?? (() => router.push(`/super-admin/clubs/${club.id}`))
   const [state, formAction, isPending] = useActionState(updateClubAction, null)
+  const submit = useSubmitWithoutReset(formAction)
   const isActive = club.is_active
 
   useEffect(() => {
@@ -53,7 +55,7 @@ export function ClubEditForm({ club, onClose }: { club: Club; onClose?: () => vo
         </button>
       </div>
 
-      <form action={formAction}>
+      <form onSubmit={submit}>
         <input type="hidden" name="club_id" value={club.id} />
 
         <div className="flex flex-col gap-6 bg-[#F8FAFC] p-6">
