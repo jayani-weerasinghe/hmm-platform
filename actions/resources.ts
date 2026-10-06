@@ -2,7 +2,6 @@
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
-import mediaInfoFactory from 'mediainfo.js'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { writeAuditLog } from '@/lib/audit'
@@ -23,48 +22,81 @@ function isExternalUrl(value: string) {
   return /^https?:\/\//i.test(value)
 }
 
-// Real duration for an uploaded video file, read from the already-in-memory
-// upload buffer (no second round-trip to Storage). Never throws — extraction
-// failure (corrupt file, unsupported codec, WASM init issue) just means
-// duration_seconds stays null and estimated_completion remains the fallback
-// for display; it must never block the upload itself.
-async function extractVideoDuration(buffer: Buffer): Promise<number | null> {
-  try {
-    const mediainfo = await mediaInfoFactory({ format: 'object' })
-    const getSize = () => buffer.length
-    const readChunk = (size: number, offset: number) =>
-      new Uint8Array(buffer.buffer, buffer.byteOffset + offset, Math.min(size, buffer.length - offset))
-    const result = await mediainfo.analyzeData(getSize, readChunk)
-    mediainfo.close()
+// ---------------------------------------------------------------------------
+// Direct-to-Storage uploads
+// ---------------------------------------------------------------------------
+// Files go straight from the browser to Supabase Storage instead of through
+// this server action: the live site runs on Vercel, which rejects any request
+// body over ~4.5MB before our code even runs, so a 5.5MB video could never be
+// uploaded through the form itself (bodySizeLimit in next.config.ts only
+// raises Next.js's own limit, not Vercel's platform one).
+//
+//  1. The form calls createResourceUploadAction() for a one-time signed upload
+//     URL (Super Admins only, files up to 50MB).
+//  2. The browser uploads the file to that URL (lib/resource-upload.ts).
+//  3. The form is then saved with just the file's storage path in
+//     `uploaded_path`, which verifyUploadedPath() checks before it's used.
 
-    const generalTrack = result.media?.track.find((track) => track['@type'] === 'General')
-    const duration = generalTrack?.Duration // seconds, per mediainfo.js's own docs for format:'object'
-    if (typeof duration !== 'number' || !Number.isFinite(duration) || duration <= 0) return null
-    return Math.round(duration)
-  } catch (err) {
-    console.warn('[resources] video duration extraction failed:', err instanceof Error ? err.message : err)
-    return null
+const UPLOADED_PATH_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(\.[A-Za-z0-9]{1,10})?$/
+
+export async function createResourceUploadAction(input: {
+  fileName: string
+  fileSize: number
+}): Promise<{ path: string; token: string } | { error: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Your session has expired. Please sign in again.' }
+
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  if (profile?.role !== 'super_admin') return { error: 'Only Super Admins can upload resources.' }
+
+  if (!Number.isFinite(input.fileSize) || input.fileSize <= 0) return { error: 'The selected file is empty.' }
+  if (input.fileSize > MAX_FILE_SIZE_BYTES) {
+    return { error: `File is too large (${(input.fileSize / (1024 * 1024)).toFixed(1)}MB). Maximum allowed is 50MB.` }
   }
+
+  const rawExt = input.fileName.includes('.') ? input.fileName.split('.').pop() ?? '' : ''
+  const ext = /^[A-Za-z0-9]{1,10}$/.test(rawExt) ? rawExt.toLowerCase() : ''
+  const path = `${crypto.randomUUID()}${ext ? `.${ext}` : ''}`
+
+  const admin = createAdminClient()
+  const { data, error } = await admin.storage.from(BUCKET).createSignedUploadUrl(path)
+  if (error || !data) return { error: 'Could not start the upload. Please try again.' }
+  return { path: data.path, token: data.token }
 }
 
-async function uploadResourceFile(file: File, type: string): Promise<{ path: string; durationSeconds: number | null }> {
+// An uploaded_path comes from the browser, so it's only trusted if it's in
+// the exact form createResourceUploadAction() issues, the file really exists
+// in Storage, it's within the size limit, and no other resource already
+// uses it (so a resource can't be pointed at — or later delete — another
+// resource's file).
+async function verifyUploadedPath(path: string): Promise<string | null> {
+  if (!UPLOADED_PATH_PATTERN.test(path)) return 'The uploaded file reference is invalid. Please upload the file again.'
+
   const admin = createAdminClient()
-  const ext = file.name.includes('.') ? file.name.split('.').pop() : ''
-  const path = `${crypto.randomUUID()}${ext ? `.${ext}` : ''}`
-  const buffer = Buffer.from(await file.arrayBuffer())
+  const { data: info, error } = await admin.storage.from(BUCKET).info(path)
+  if (error || !info) return 'The uploaded file could not be found. Please upload it again.'
+  if (typeof info.size === 'number' && info.size > MAX_FILE_SIZE_BYTES) return 'File is too large. Maximum allowed is 50MB.'
 
-  const { error } = await admin.storage
-    .from(BUCKET)
-    .upload(path, buffer, { contentType: file.type || undefined })
+  const { count } = await admin.from('resources').select('id', { count: 'exact', head: true }).eq('content_url', path)
+  if (count) return 'The uploaded file reference is invalid. Please upload the file again.'
+  return null
+}
 
-  if (error) throw new Error(`File upload failed: ${error.message}`)
+// Removes a just-uploaded file when the save it was meant for fails, so a
+// failed attempt doesn't leave an orphaned file in Storage (the form keeps
+// the file selected and uploads it again on retry). Only ever deletes a
+// path that passes verifyUploadedPath(), i.e. one no resource is using.
+async function discardUpload(path: string | null) {
+  if (path && !(await verifyUploadedPath(path))) await deleteResourceFile(path)
+}
 
-  // Only for uploaded video files — external URLs (any type) never go
-  // through this function at all, so there's no separate branch needed to
-  // exclude them.
-  const durationSeconds = type === 'video' ? await extractVideoDuration(buffer) : null
-
-  return { path, durationSeconds }
+// Video length is measured in the browser (lib/resource-upload.ts) and sent
+// as duration_seconds. Display metadata only — anything implausible is
+// dropped rather than rejected, same as the old server-side extraction.
+function parseDurationSeconds(value: FormDataEntryValue | null): number | null {
+  const n = Number(value)
+  return Number.isFinite(n) && n > 0 && n <= 24 * 60 * 60 ? Math.round(n) : null
 }
 
 async function deleteResourceFile(path: string) {
@@ -80,28 +112,25 @@ function readCommonFields(formData: FormData) {
   const publicationDate = formData.get('publication_date') as string | null
   const contentUrl      = (formData.get('content_url') as string | null)?.trim() || null
   const contentText     = (formData.get('content_text') as string | null)?.trim() || null
-  const file            = formData.get('file') as File | null
+  // Set by the browser after uploading the chosen file directly to Storage —
+  // see "Direct-to-Storage uploads" above. The file itself never comes here.
+  const uploadedPath    = (formData.get('uploaded_path') as string | null)?.trim() || null
+  const durationSeconds = parseDurationSeconds(formData.get('duration_seconds'))
 
-  return { title, description, type, category, publicationDate, contentUrl, contentText, file }
+  return { title, description, type, category, publicationDate, contentUrl, contentText, uploadedPath, durationSeconds }
 }
 
 function validate({
-  title, type, publicationDate, contentUrl, contentText, file,
+  title, type, publicationDate, contentUrl, contentText, uploadedPath,
 }: ReturnType<typeof readCommonFields>): string | null {
   if (!title) return 'Title is required.'
   if (!type || !RESOURCE_TYPES.includes(type as ResourceType)) return 'A valid resource type is required.'
   if (!publicationDate) return 'Publication date is required.'
 
-  const hasFile = !!(file && file.size > 0)
-
-  if (hasFile && file!.size > MAX_FILE_SIZE_BYTES) {
-    return `File is too large (${(file!.size / (1024 * 1024)).toFixed(1)}MB). Maximum allowed is 50MB.`
-  }
-
   if (type === 'article') {
     if (!contentText && !contentUrl) return 'Provide article content or an external link.'
   } else {
-    if (!hasFile && !contentUrl) return 'Upload a file or provide an external URL.'
+    if (!uploadedPath && !contentUrl) return 'Upload a file or provide an external URL.'
   }
 
   return null
@@ -117,9 +146,14 @@ export async function createResourceAction(
   // The older full-page create form still sends an explicit date, which wins.
   if (!fields.publicationDate) fields.publicationDate = new Date().toISOString().slice(0, 10)
 
+  const fail = async (error: string): Promise<ResourceActionState> => {
+    await discardUpload(fields.uploadedPath)
+    return { error }
+  }
+
   const validationError = validate(fields)
-  if (validationError) return { error: validationError }
-  if (!isResourceCategory(fields.category)) return { error: 'Choose a category from the list.' }
+  if (validationError) return fail(validationError)
+  if (!isResourceCategory(fields.category)) return fail('Choose a category from the list.')
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -127,16 +161,13 @@ export async function createResourceAction(
 
   let contentUrl = fields.contentUrl
   let durationSeconds: number | null = null
-  const hasFile = !!(fields.file && fields.file.size > 0)
+  const hasFile = !!fields.uploadedPath
 
-  if (hasFile) {
-    try {
-      const uploaded = await uploadResourceFile(fields.file as File, fields.type as string)
-      contentUrl = uploaded.path
-      durationSeconds = uploaded.durationSeconds
-    } catch (err) {
-      return { error: err instanceof Error ? err.message : 'File upload failed.' }
-    }
+  if (fields.uploadedPath) {
+    const uploadError = await verifyUploadedPath(fields.uploadedPath)
+    if (uploadError) return { error: uploadError }
+    contentUrl = fields.uploadedPath
+    durationSeconds = fields.type === 'video' ? fields.durationSeconds : null
   }
 
   // "intent" is set by whichever footer button submitted the form (Save as
@@ -203,7 +234,11 @@ export async function updateResourceAction(
   const resourceId = formData.get('resource_id') as string
   const previousContentUrl = (formData.get('previous_content_url') as string | null) || null
   const fields = readCommonFields(formData)
-  const hasFile = !!(fields.file && fields.file.size > 0)
+  const hasFile = !!fields.uploadedPath
+  const fail = async (error: string): Promise<ResourceActionState> => {
+    await discardUpload(fields.uploadedPath)
+    return { error }
+  }
 
   // The External URL field is intentionally left blank in the edit form when the
   // resource's existing content is a stored file (it only pre-fills for http(s) URLs).
@@ -220,7 +255,7 @@ export async function updateResourceAction(
   }
 
   const validationError = validate(fields)
-  if (validationError) return { error: validationError }
+  if (validationError) return fail(validationError)
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -234,7 +269,7 @@ export async function updateResourceAction(
     .eq('id', resourceId)
     .single()
   if (!isAllowedCategory(fields.category, existing?.category ?? null)) {
-    return { error: 'Choose a category from the list.' }
+    return fail('Choose a category from the list.')
   }
 
   let contentUrl = fields.contentUrl
@@ -244,14 +279,11 @@ export async function updateResourceAction(
   // rather than being overwritten just because some other field changed.
   let durationSeconds: number | null | undefined
 
-  if (hasFile) {
-    try {
-      const uploaded = await uploadResourceFile(fields.file as File, fields.type as string)
-      contentUrl = uploaded.path
-      durationSeconds = uploaded.durationSeconds
-    } catch (err) {
-      return { error: err instanceof Error ? err.message : 'File upload failed.' }
-    }
+  if (fields.uploadedPath) {
+    const uploadError = await verifyUploadedPath(fields.uploadedPath)
+    if (uploadError) return { error: uploadError }
+    contentUrl = fields.uploadedPath
+    durationSeconds = fields.type === 'video' ? fields.durationSeconds : null
   }
 
   const { error } = await supabase
