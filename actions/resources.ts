@@ -208,7 +208,14 @@ export async function updateResourceAction(
   // The External URL field is intentionally left blank in the edit form when the
   // resource's existing content is a stored file (it only pre-fills for http(s) URLs).
   // So "no new file, no URL typed" means "leave the existing file alone", not "remove it".
-  if (fields.type !== 'article' && !hasFile && !fields.contentUrl && previousContentUrl) {
+  // Only for a stored file, though: when the existing content is an external link,
+  // the field was pre-filled, so an empty field means the user deliberately cleared
+  // it — that must fail validation below, not silently restore the old link while
+  // reporting success.
+  if (
+    fields.type !== 'article' && !hasFile && !fields.contentUrl &&
+    previousContentUrl && !isExternalUrl(previousContentUrl)
+  ) {
     fields.contentUrl = previousContentUrl
   }
 
