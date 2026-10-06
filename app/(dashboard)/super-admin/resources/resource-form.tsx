@@ -1,7 +1,7 @@
 'use client'
 
 import { useActionState, useEffect, useState } from 'react'
-import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
+import { useResourceSubmit } from '@/hooks/use-resource-submit'
 import { useRouter } from 'next/navigation'
 import { updateResourceAction, type ResourceActionState } from '@/actions/resources'
 import { RESOURCE_CATEGORIES, isResourceCategory } from '@/lib/resource-categories'
@@ -28,7 +28,8 @@ export function EditResourceForm({ resource, onClose }: { resource: ResourceValu
   const router = useRouter()
   const close = onClose ?? (() => router.push('/super-admin/resources'))
   const [state, formAction, isPending] = useActionState<ResourceActionState, FormData>(updateResourceAction, null)
-  const submit = useSubmitWithoutReset(formAction)
+  const { submit, uploading, uploadError } = useResourceSubmit(formAction)
+  const errorMessage = uploadError ?? state?.error
   const [type, setType] = useState(resource.type)
 
   useEffect(() => {
@@ -56,9 +57,9 @@ export function EditResourceForm({ resource, onClose }: { resource: ResourceValu
         <input type="hidden" name="previous_content_url" value={resource.content_url ?? ''} />
 
         <div className="flex flex-1 flex-col gap-5 overflow-y-auto bg-[#F8FAFC] p-6">
-          {state?.error && (
+          {errorMessage && (
             <div className="rounded-lg bg-red-50 p-3 text-[13px] text-red-700" role="alert">
-              {state.error}
+              {errorMessage}
             </div>
           )}
 
@@ -225,10 +226,10 @@ export function EditResourceForm({ resource, onClose }: { resource: ResourceValu
           </button>
           <button
             type="submit"
-            disabled={isPending}
+            disabled={uploading || isPending}
             className="flex h-10 items-center rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
           >
-            {isPending ? 'Saving…' : 'Save Changes'}
+            {uploading ? 'Uploading file…' : isPending ? 'Saving…' : 'Save Changes'}
           </button>
         </div>
       </form>
