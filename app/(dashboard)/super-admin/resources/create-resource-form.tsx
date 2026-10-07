@@ -35,15 +35,6 @@ function CheckboxRow({ name, label, defaultChecked }: { name: string; label: str
   )
 }
 
-function RadioRow({ name, value, label, defaultChecked }: { name: string; value: string; label: string; defaultChecked?: boolean }) {
-  return (
-    <label className="flex items-center gap-2 text-[13px] font-medium text-[#0F172A]">
-      <input type="radio" name={name} value={value} defaultChecked={defaultChecked} className="h-4 w-4 accent-[#0075FF]" />
-      {label}
-    </label>
-  )
-}
-
 function FileDropZone() {
   const [fileName, setFileName] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -270,24 +261,18 @@ export function CreateResourceForm({ onClose }: { onClose?: () => void }) {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <h3 className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">
-                  Target Audience &amp; Visibility
-                </h3>
-                <div className="flex flex-col gap-2 rounded-xl bg-[#F8FAFC] p-3">
-                  <CheckboxRow name="visible_to_champions" label="Champions (Web Portal & Admin Suite)" defaultChecked />
-                  <CheckboxRow name="visible_to_gatekeepers" label="Gatekeepers (Mobile Field App)" defaultChecked />
-                </div>
-              </div>
-              <div>
-                <h3 className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">
-                  Publication Status
-                </h3>
-                <div className="flex flex-col gap-2 rounded-xl bg-[#F8FAFC] p-3">
-                  <RadioRow name="publication_status_display" value="publish" label="Publish Immediately" defaultChecked />
-                  <RadioRow name="publication_status_display" value="draft" label="Save as Draft" />
-                </div>
+            {/* Draft vs. published is decided only by the footer button used
+                (Save as Draft / Publish Resource). A "Publication Status"
+                radio group that used to sit here was decorative (the server
+                never read it), so choosing "Save as Draft" there and then
+                clicking Publish Resource published the resource anyway. */}
+            <div>
+              <h3 className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">
+                Target Audience &amp; Visibility
+              </h3>
+              <div className="flex flex-col gap-2 rounded-xl bg-[#F8FAFC] p-3">
+                <CheckboxRow name="visible_to_champions" label="Champions (Web Portal & Admin Suite)" defaultChecked />
+                <CheckboxRow name="visible_to_gatekeepers" label="Gatekeepers (Mobile Field App)" defaultChecked />
               </div>
             </div>
           </div>
