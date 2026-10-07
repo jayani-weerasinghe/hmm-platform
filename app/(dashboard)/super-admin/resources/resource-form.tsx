@@ -1,10 +1,12 @@
 'use client'
 
-import { useActionState, useEffect, useState } from 'react'
+import { useActionState, useEffect, useRef, useState, type FormEvent } from 'react'
 import { useResourceSubmit } from '@/hooks/use-resource-submit'
 import { useRouter } from 'next/navigation'
 import { updateResourceAction, type ResourceActionState } from '@/actions/resources'
 import { RESOURCE_CATEGORIES, isResourceCategory } from '@/lib/resource-categories'
+import { todayDateString } from '@/lib/org-date'
+import { formatPublicationDate, needsRescheduleConfirmation, publicationMessage } from './publication-message'
 
 interface ResourceValues {
   id: string
@@ -15,6 +17,7 @@ interface ResourceValues {
   publication_date: string
   content_url: string | null
   content_text: string | null
+  status: string
 }
 
 const inputClass = 'mt-1.5 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 py-2 text-[13.5px] text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]'
@@ -31,6 +34,42 @@ export function EditResourceForm({ resource, onClose }: { resource: ResourceValu
   const { submit, uploading, uploadError } = useResourceSubmit(formAction)
   const errorMessage = uploadError ?? state?.error
   const [type, setType] = useState(resource.type)
+  const isDraft = resource.status === 'draft'
+  const today = todayDateString()
+  const statusLabel = isDraft ? 'Draft' : resource.publication_date > today ? 'Scheduled' : 'Published'
+
+  // A draft's stored date is only a placeholder (the column can't be empty),
+  // so its box starts empty — the real date is set when publishing.
+  const [pubDate, setPubDate] = useState(isDraft ? '' : resource.publication_date)
+  const pubMessage = publicationMessage(isDraft, resource.publication_date, pubDate, today)
+
+  // Moving a live resource to a future date hides it from users right away,
+  // so "Save Changes" asks for confirmation first in that one case.
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const confirmedRef = useRef(false)
+  const formRef = useRef<HTMLFormElement>(null)
+  const publishButtonRef = useRef<HTMLButtonElement>(null)
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null
+    const isPublishIntent = submitter?.value === 'publish'
+    if (
+      isPublishIntent && !confirmedRef.current &&
+      needsRescheduleConfirmation(isDraft, resource.publication_date, pubDate, today)
+    ) {
+      event.preventDefault()
+      setConfirmOpen(true)
+      return
+    }
+    confirmedRef.current = false
+    submit(event)
+  }
+
+  function confirmReschedule() {
+    setConfirmOpen(false)
+    confirmedRef.current = true
+    formRef.current?.requestSubmit(publishButtonRef.current ?? undefined)
+  }
 
   useEffect(() => {
     if (state?.success) close()
@@ -40,7 +79,18 @@ export function EditResourceForm({ resource, onClose }: { resource: ResourceValu
   return (
     <div className="mx-auto flex max-h-[90vh] w-full max-w-[560px] flex-col overflow-hidden rounded-2xl bg-white shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)] font-[family-name:var(--font-inter)]">
       <div className="flex items-start justify-between gap-4 px-6 pb-4 pt-6">
-        <h1 className="text-[18px] font-bold leading-[24px] text-[#0F172A]">Edit Resource</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-[18px] font-bold leading-[24px] text-[#0F172A]">Edit Resource</h1>
+          <span
+            className={`rounded-full px-2 py-0.5 text-[11px] font-semibold tracking-[0.44px] ${
+              statusLabel === 'Draft' ? 'bg-[#FEF3C7] text-[#92400E]'
+              : statusLabel === 'Scheduled' ? 'bg-[#EFF4FF] text-[#1E4BB8]'
+              : 'bg-[#E6FFE7] text-[#16A34A]'
+            }`}
+          >
+            {statusLabel}
+          </span>
+        </div>
         <button
           type="button"
           onClick={close}
@@ -52,7 +102,7 @@ export function EditResourceForm({ resource, onClose }: { resource: ResourceValu
         </button>
       </div>
 
-      <form onSubmit={submit} className="flex flex-1 flex-col overflow-hidden">
+      <form ref={formRef} onSubmit={handleSubmit} className="flex flex-1 flex-col overflow-hidden">
         <input type="hidden" name="resource_id" value={resource.id} />
         <input type="hidden" name="previous_content_url" value={resource.content_url ?? ''} />
 
@@ -133,16 +183,39 @@ export function EditResourceForm({ resource, onClose }: { resource: ResourceValu
 
           <div>
             <label htmlFor="publication_date" className={labelClass}>
-              Publication Date <span className="text-[#DC2626]">*</span>
+              Publication Date {!isDraft && <span className="text-[#DC2626]">*</span>}
             </label>
             <input
               id="publication_date"
               name="publication_date"
               type="date"
-              required
-              defaultValue={resource.publication_date}
+              required={!isDraft}
+              value={pubDate}
+              onChange={e => {
+                setPubDate(e.target.value)
+                // Same wording as the message below, instead of the browser's own.
+                const message = publicationMessage(isDraft, resource.publication_date, e.target.value, today)
+                e.currentTarget.setCustomValidity(message?.tone === 'error' ? message.text : '')
+              }}
               className={inputClass}
             />
+            {/* Spells out what saving will do to the resource's visibility,
+                updated as the date changes (see publication-message.ts). */}
+            {pubMessage && (
+              <p
+                role={pubMessage.tone === 'info' ? undefined : 'alert'}
+                className={`mt-1.5 rounded-lg px-3 py-2 text-[12px] leading-[18px] ${
+                  pubMessage.tone === 'warning' ? 'bg-amber-50 text-[#92400E]'
+                  : pubMessage.tone === 'error' ? 'bg-red-50 text-[#DC2626]'
+                  : 'bg-[#EFF4FF] text-[#1E4BB8]'
+                }`}
+              >
+                {pubMessage.tone === 'warning' && '⚠ '}{pubMessage.text}
+              </p>
+            )}
+            {isDraft && !pubDate && (
+              <p className="mt-1 text-[11px] text-[#94A3B8]">Or choose a future date to schedule it.</p>
+            )}
           </div>
 
           {type === 'article' ? (
@@ -224,15 +297,65 @@ export function EditResourceForm({ resource, onClose }: { resource: ResourceValu
           >
             Cancel
           </button>
+          {/* Draft: Save as Draft / Publish. Published: Move to Draft / Save
+              Changes. Which button is used decides the status (see
+              updateResourceAction) — saving alone never publishes a draft. */}
           <button
             type="submit"
+            name="intent"
+            value="draft"
+            disabled={uploading || isPending}
+            className="flex h-10 items-center rounded-lg bg-[#F1F5F9] px-4 text-[13px] font-medium text-[#0F172A] transition-colors hover:bg-[#E2E8F0] disabled:opacity-60"
+          >
+            {isDraft ? 'Save as Draft' : 'Move to Draft'}
+          </button>
+          <button
+            ref={publishButtonRef}
+            type="submit"
+            name="intent"
+            value="publish"
             disabled={uploading || isPending}
             className="flex h-10 items-center rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
           >
-            {uploading ? 'Uploading file…' : isPending ? 'Saving…' : 'Save Changes'}
+            {uploading ? 'Uploading file…' : isPending ? 'Saving…' : isDraft ? 'Publish' : 'Save Changes'}
           </button>
         </div>
       </form>
+
+      {confirmOpen && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="reschedule-confirm-title"
+        >
+          <div className="w-full max-w-[420px] rounded-2xl bg-white p-6 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)]">
+            <h2 id="reschedule-confirm-title" className="text-[16px] font-bold text-[#0F172A]">
+              Hide this resource until {formatPublicationDate(pubDate)}?
+            </h2>
+            <p className="mt-2 text-[13px] leading-5 text-[#475569]">
+              It&apos;s currently visible to Champions and Gatekeepers. If you continue, they won&apos;t see it
+              until {formatPublicationDate(pubDate)}.
+            </p>
+            <div className="mt-5 flex justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setConfirmOpen(false)}
+                className="flex h-10 items-center rounded-lg bg-[#F1F5F9] px-4 text-[13px] font-medium text-[#0F172A] transition-colors hover:bg-[#E2E8F0]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmReschedule}
+                className="flex h-10 items-center rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-white transition-colors hover:bg-[#E09B0F]"
+              >
+                Yes, reschedule
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

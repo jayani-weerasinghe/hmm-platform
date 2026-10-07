@@ -13,6 +13,7 @@ interface ResourceValues {
   publication_date: string
   content_url: string | null
   content_text: string | null
+  status: string
 }
 
 export function EditResourceModal({ resource }: { resource: ResourceValues }) {

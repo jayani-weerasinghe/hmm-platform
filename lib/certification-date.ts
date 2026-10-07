@@ -6,19 +6,11 @@
 // so between midnight and 05:30 in Sri Lanka a server-UTC "today" would
 // still be yesterday and wrongly reject a certification dated today.
 
-const ORG_TIME_ZONE = 'Asia/Colombo'
+import { todayDateString } from '@/lib/org-date'
+
+export { todayDateString }
 
 export const FUTURE_DATE_MESSAGE = 'Certification date cannot be in the future.'
-
-export function todayDateString(): string {
-  // en-CA formats as YYYY-MM-DD, the same form a date input uses.
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: ORG_TIME_ZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date())
-}
 
 // Returns a user-facing error, or null when the date is acceptable.
 export function validateCertificationDate(value: string | null | undefined): string | null {
