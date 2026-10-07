@@ -14,7 +14,7 @@ export default async function EditResourcePage({
 
   const { data: resource } = await supabase
     .from('resources')
-    .select('id, title, description, type, category, publication_date, content_url, content_text')
+    .select('id, title, description, type, category, publication_date, content_url, content_text, status')
     .eq('id', id)
     .single()
 

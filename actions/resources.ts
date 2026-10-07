@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { writeAuditLog } from '@/lib/audit'
 import { isAllowedCategory, isResourceCategory } from '@/lib/resource-categories'
+import { todayDateString } from '@/lib/org-date'
 
 const BUCKET = 'resources'
 const RESOURCE_TYPES = ['video', 'article', 'document', 'other'] as const
@@ -254,21 +255,34 @@ export async function updateResourceAction(
     fields.contentUrl = previousContentUrl
   }
 
-  const validationError = validate(fields)
-  if (validationError) return fail(validationError)
-
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  // Read the stored category from the database (not from the form), so only
-  // a genuinely unchanged older category is let through.
+  // Stored values are read from the database, not the form: the category (so
+  // only a genuinely unchanged older category is let through) and the
+  // status/date (for the publishing rules below).
   const { data: existing } = await supabase
     .from('resources')
-    .select('category')
+    .select('category, status, publication_date')
     .eq('id', resourceId)
     .single()
-  if (!isAllowedCategory(fields.category, existing?.category ?? null)) {
+  if (!existing) return fail('Resource not found.')
+
+  // Draft vs. published comes from the footer button used: a draft has
+  // "Save as Draft" (intent=draft) and "Publish" (intent=publish); a
+  // published resource has "Save Changes" (intent=publish) and "Move to
+  // Draft" (intent=draft). Saving never changes the status by itself.
+  const intent = formData.get('intent') as string | null
+  const newStatus: 'draft' | 'published' =
+    intent === 'draft' ? 'draft' : intent === 'publish' ? 'published' : existing.status
+  const publishDateError = resolvePublicationDate(fields, newStatus, existing)
+  if (publishDateError) return fail(publishDateError)
+
+  const validationError = validate(fields)
+  if (validationError) return fail(validationError)
+
+  if (!isAllowedCategory(fields.category, existing.category ?? null)) {
     return fail('Choose a category from the list.')
   }
 
@@ -296,6 +310,7 @@ export async function updateResourceAction(
       publication_date: fields.publicationDate,
       content_url: contentUrl,
       content_text: fields.type === 'article' ? fields.contentText : null,
+      status: newStatus,
       ...(hasFile ? { duration_seconds: durationSeconds } : {}),
     })
     .eq('id', resourceId)
@@ -313,14 +328,47 @@ export async function updateResourceAction(
 
   await writeAuditLog({
     actorId: user.id,
-    action: 'resource.updated',
+    action:
+      existing.status === 'draft' && newStatus === 'published' ? 'resource.published'
+      : existing.status === 'published' && newStatus === 'draft' ? 'resource.unpublished'
+      : 'resource.updated',
     entityType: 'resource',
     entityId: resourceId,
-    details: { title: fields.title, type: fields.type },
+    details: { title: fields.title, type: fields.type, status: newStatus, publication_date: fields.publicationDate },
   })
 
   revalidatePath('/super-admin/resources')
+  revalidatePath('/champion/resources')
   return { success: true }
+}
+
+// The publication date is the day a published resource goes live (a future
+// date schedules it). Fills in or checks fields.publicationDate in place and
+// returns an error message, or null.
+//  - Draft: the date isn't used yet; an empty box keeps the stored value
+//    (the column can't be empty).
+//  - Publishing: empty means today. It can't be in the past — except an
+//    already-published resource may keep its original, unchanged date.
+function resolvePublicationDate(
+  fields: ReturnType<typeof readCommonFields>,
+  newStatus: 'draft' | 'published',
+  existing: { status: string; publication_date: string }
+): string | null {
+  if (newStatus === 'draft') {
+    if (!fields.publicationDate) fields.publicationDate = existing.publication_date
+    return null
+  }
+
+  const today = todayDateString()
+  if (!fields.publicationDate) fields.publicationDate = today
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fields.publicationDate)) return 'Enter a valid publication date.'
+
+  const keepsOriginalDate =
+    existing.status === 'published' && fields.publicationDate === existing.publication_date
+  if (!keepsOriginalDate && fields.publicationDate < today) {
+    return "Publication date can't be in the past. Leave it empty to publish today, or choose a future date to schedule it."
+  }
+  return null
 }
 
 export async function deleteResourceAction(formData: FormData) {

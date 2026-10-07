@@ -5,6 +5,7 @@ import { useResourceSubmit } from '@/hooks/use-resource-submit'
 import { useRouter } from 'next/navigation'
 import { updateResourceAction, type ResourceActionState } from '@/actions/resources'
 import { RESOURCE_CATEGORIES, isResourceCategory } from '@/lib/resource-categories'
+import { todayDateString } from '@/lib/org-date'
 
 interface ResourceValues {
   id: string
@@ -15,6 +16,7 @@ interface ResourceValues {
   publication_date: string
   content_url: string | null
   content_text: string | null
+  status: string
 }
 
 const inputClass = 'mt-1.5 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 py-2 text-[13.5px] text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]'
@@ -31,6 +33,9 @@ export function EditResourceForm({ resource, onClose }: { resource: ResourceValu
   const { submit, uploading, uploadError } = useResourceSubmit(formAction)
   const errorMessage = uploadError ?? state?.error
   const [type, setType] = useState(resource.type)
+  const isDraft = resource.status === 'draft'
+  const today = todayDateString()
+  const statusLabel = isDraft ? 'Draft' : resource.publication_date > today ? 'Scheduled' : 'Published'
 
   useEffect(() => {
     if (state?.success) close()
@@ -40,7 +45,18 @@ export function EditResourceForm({ resource, onClose }: { resource: ResourceValu
   return (
     <div className="mx-auto flex max-h-[90vh] w-full max-w-[560px] flex-col overflow-hidden rounded-2xl bg-white shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)] font-[family-name:var(--font-inter)]">
       <div className="flex items-start justify-between gap-4 px-6 pb-4 pt-6">
-        <h1 className="text-[18px] font-bold leading-[24px] text-[#0F172A]">Edit Resource</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-[18px] font-bold leading-[24px] text-[#0F172A]">Edit Resource</h1>
+          <span
+            className={`rounded-full px-2 py-0.5 text-[11px] font-semibold tracking-[0.44px] ${
+              statusLabel === 'Draft' ? 'bg-[#FEF3C7] text-[#92400E]'
+              : statusLabel === 'Scheduled' ? 'bg-[#EFF4FF] text-[#1E4BB8]'
+              : 'bg-[#E6FFE7] text-[#16A34A]'
+            }`}
+          >
+            {statusLabel}
+          </span>
+        </div>
         <button
           type="button"
           onClick={close}
@@ -133,16 +149,24 @@ export function EditResourceForm({ resource, onClose }: { resource: ResourceValu
 
           <div>
             <label htmlFor="publication_date" className={labelClass}>
-              Publication Date <span className="text-[#DC2626]">*</span>
+              Publication Date {!isDraft && <span className="text-[#DC2626]">*</span>}
             </label>
+            {/* A draft's stored date is only a placeholder (the column can't be
+                empty), so the box starts empty — it's set when publishing. */}
             <input
               id="publication_date"
               name="publication_date"
               type="date"
-              required
-              defaultValue={resource.publication_date}
+              required={!isDraft}
+              min={isDraft ? today : undefined}
+              defaultValue={isDraft ? '' : resource.publication_date}
               className={inputClass}
             />
+            <p className="mt-1.5 text-[12px] text-[#64748B]">
+              {isDraft
+                ? 'When you publish: leave empty to publish today, or choose a future date to schedule it.'
+                : 'The date this resource goes live. A future date keeps it hidden until then.'}
+            </p>
           </div>
 
           {type === 'article' ? (
@@ -224,12 +248,26 @@ export function EditResourceForm({ resource, onClose }: { resource: ResourceValu
           >
             Cancel
           </button>
+          {/* Draft: Save as Draft / Publish. Published: Move to Draft / Save
+              Changes. Which button is used decides the status (see
+              updateResourceAction) — saving alone never publishes a draft. */}
           <button
             type="submit"
+            name="intent"
+            value="draft"
+            disabled={uploading || isPending}
+            className="flex h-10 items-center rounded-lg bg-[#F1F5F9] px-4 text-[13px] font-medium text-[#0F172A] transition-colors hover:bg-[#E2E8F0] disabled:opacity-60"
+          >
+            {isDraft ? 'Save as Draft' : 'Move to Draft'}
+          </button>
+          <button
+            type="submit"
+            name="intent"
+            value="publish"
             disabled={uploading || isPending}
             className="flex h-10 items-center rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
           >
-            {uploading ? 'Uploading file…' : isPending ? 'Saving…' : 'Save Changes'}
+            {uploading ? 'Uploading file…' : isPending ? 'Saving…' : isDraft ? 'Publish' : 'Save Changes'}
           </button>
         </div>
       </form>

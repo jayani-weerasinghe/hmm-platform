@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { ResourceTypeIcon } from './resource-type-icon'
 import { ResourceDeleteButton } from './resource-delete-button'
 import { RESOURCE_TYPE_LABEL, RESOURCE_TYPE_PILL_ICON, resourceTypeVisual, categoryColor } from './design-tokens'
+import { todayDateString } from '@/lib/org-date'
 
 export interface ResourceRowData {
   id: string
@@ -76,6 +77,13 @@ export function ResourceRow({
             {resource.status === 'draft' && (
               <span className="flex items-center gap-1 rounded-full bg-[#FEF3C7] px-2 py-0.5 text-[11px] font-semibold tracking-[0.44px] text-[#92400E]">
                 Draft
+              </span>
+            )}
+            {/* Published with a future publication date: not visible to
+                Champions/Gatekeepers until that date. */}
+            {resource.status === 'published' && resource.publication_date > todayDateString() && (
+              <span className="flex items-center gap-1 rounded-full bg-[#EFF4FF] px-2 py-0.5 text-[11px] font-semibold tracking-[0.44px] text-[#1E4BB8]">
+                Scheduled
               </span>
             )}
           </div>
